@@ -1,0 +1,2859 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🏓 Table Tennis 3D</title>
+
+  <!-- ─── CDN Dependencies ─────────────────────────────────────────── -->
+  <!-- Three.js: try r134 (stable UMD), fallback to unpkg r128 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js" crossorigin="anonymous"
+    onerror="this.onerror=null;this.src='https://unpkg.com/three@0.134.0/build/three.min.js'"></script>
+  <script>
+    // Verify THREE loaded; if not inject fallback synchronously
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>');
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"
+    crossorigin="anonymous"></script>
+
+  <style>
+    /* ───────────────────────────────────────────────────────────────
+       BASE / RESET
+    ─────────────────────────────────────────────────────────────── */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    canvas#gameCanvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       OVERLAY LAYER (sits on top of canvas)
+    ─────────────────────────────────────────────────────────────── */
+    #overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      /* children opt-in via pointer-events:auto */
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       COMMON COMPONENTS
+    ─────────────────────────────────────────────────────────────── */
+    .panel {
+      background: rgba(10, 10, 20, 0.88);
+      border: 1px solid rgba(0, 255, 136, 0.25);
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      padding: 28px 36px;
+      pointer-events: auto;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 10px 28px;
+      border: 2px solid #00ff88;
+      border-radius: 8px;
+      color: #00ff88;
+      background: transparent;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.04em;
+    }
+
+    .btn:hover {
+      background: rgba(0, 255, 136, 0.12);
+      box-shadow: 0 0 18px rgba(0, 255, 136, 0.45);
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn.danger {
+      border-color: #ff4466;
+      color: #ff4466;
+    }
+
+    .btn.danger:hover {
+      background: rgba(255, 68, 102, 0.12);
+      box-shadow: 0 0 18px rgba(255, 68, 102, 0.4);
+    }
+
+    input.room-input {
+      background: rgba(255, 255, 255, 0.07);
+      border: 2px solid rgba(0, 255, 136, 0.4);
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-align: center;
+      padding: 8px 16px;
+      width: 110px;
+      outline: none;
+    }
+
+    input.room-input:focus {
+      border-color: #00ff88;
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       MENU SCREEN
+    ─────────────────────────────────────────────────────────────── */
+    #menuScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      min-width: 390px;
+    }
+
+    #menuScreen h1 {
+      font-size: 3rem;
+      color: #fff;
+      margin-bottom: 4px;
+      text-shadow: 0 0 32px rgba(0, 255, 136, 0.6), 0 0 80px rgba(0, 255, 136, 0.2);
+      letter-spacing: 0.04em;
+    }
+
+    #menuScreen .subtitle {
+      color: #667788;
+      font-size: 0.82rem;
+      margin-bottom: 32px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    /* Glowing divider line between sections */
+    .menu-divider {
+      width: 60px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.5), transparent);
+      margin: 18px auto;
+    }
+
+    .menu-section {
+      margin-bottom: 14px;
+    }
+
+    .menu-label {
+      font-size: 0.7rem;
+      color: rgba(0, 255, 136, 0.5);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .menu-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    #instructionsPanel {
+      text-align: left;
+      margin-top: 18px;
+      font-size: 0.82rem;
+      color: #aab8c0;
+      line-height: 1.7;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease;
+    }
+
+    #instructionsPanel.open {
+      max-height: 400px;
+    }
+
+    #instructionsPanel h3 {
+      color: #00ff88;
+      margin-bottom: 6px;
+    }
+
+    #instructionsPanel kbd {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: monospace;
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       LOBBY SCREEN
+    ─────────────────────────────────────────────────────────────── */
+    #lobbyScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      min-width: 320px;
+      display: none;
+    }
+
+    #lobbyScreen h2 {
+      font-size: 1.5rem;
+      margin-bottom: 18px;
+      color: #00ff88;
+    }
+
+    #roomCodeDisplay {
+      font-size: 3rem;
+      font-weight: 900;
+      letter-spacing: 0.25em;
+      color: #fff;
+      text-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+      margin-bottom: 12px;
+    }
+
+    #lobbyStatus {
+      color: #88aaaa;
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       HUD (in-game overlay)
+    ─────────────────────────────────────────────────────────────── */
+    #hud {
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 12px 20px;
+      display: none;
+      pointer-events: none;
+    }
+
+    #scoreboard {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, rgba(5, 5, 18, 0.92) 0%, rgba(10, 20, 35, 0.92) 100%);
+      border: 1px solid rgba(0, 255, 136, 0.30);
+      border-radius: 16px;
+      padding: 10px 32px 10px 32px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      pointer-events: none;
+      box-shadow: 0 0 28px rgba(0, 255, 136, 0.12), 0 4px 24px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(10px);
+    }
+
+    .player-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .player-name {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #778899;
+    }
+
+    .score-num {
+      font-size: 2.6rem;
+      font-weight: 900;
+      min-width: 44px;
+      text-align: center;
+      line-height: 1;
+      text-shadow: 0 0 20px currentColor;
+    }
+
+    #p1Score {
+      color: #ff5577;
+    }
+
+    #p2Score {
+      color: #4499ff;
+    }
+
+    .score-divider {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .score-sep {
+      font-size: 1.6rem;
+      color: rgba(255, 255, 255, 0.25);
+      font-weight: 300;
+      line-height: 1;
+    }
+
+    .score-to-win {
+      font-size: 0.62rem;
+      color: rgba(0, 255, 136, 0.45);
+      letter-spacing: 0.06em;
+    }
+
+    /* Serving indicator dots */
+    .serve-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #00ff88;
+      opacity: 0;
+      transition: opacity 0.3s;
+      box-shadow: 0 0 8px #00ff88;
+    }
+
+    .serve-dot.active {
+      opacity: 1;
+    }
+
+    #roomCodeHUD {
+      position: absolute;
+      top: 14px;
+      right: 20px;
+      background: linear-gradient(135deg, rgba(0, 20, 10, 0.88), rgba(0, 10, 5, 0.88));
+      border: 1px solid rgba(0, 255, 136, 0.35);
+      border-radius: 10px;
+      padding: 5px 16px;
+      font-size: 0.75rem;
+      color: #00ff88;
+      letter-spacing: 0.18em;
+      font-weight: 700;
+      box-shadow: 0 0 14px rgba(0, 255, 136, 0.15);
+    }
+
+    #controlsHint {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 0.76rem;
+      pointer-events: none;
+      text-align: center;
+      letter-spacing: 0.04em;
+    }
+
+    #cameraBtn {
+      position: absolute;
+      bottom: 16px;
+      right: 20px;
+      pointer-events: auto;
+      font-size: 0.8rem;
+      padding: 7px 14px;
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       OPPONENT VIDEO WINDOW (WebRTC)
+    ─────────────────────────────────────────────────────────────── */
+    #videoWrap {
+      position: absolute;
+      bottom: 16px;
+      left: 20px;
+      width: 200px;
+      height: 150px;
+      border: 2px solid rgba(0, 255, 136, 0.4);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #05080c;
+      box-shadow: 0 0 14px rgba(0, 255, 136, 0.15);
+      display: none;
+      pointer-events: none;
+    }
+
+    #opponentVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    #selfVideo {
+      position: absolute;
+      right: 6px;
+      bottom: 6px;
+      width: 56px;
+      height: 42px;
+      object-fit: cover;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 5px;
+      transform: scaleX(-1);
+      /* mirror self-view */
+      display: none;
+      background: #000;
+    }
+
+    .video-label {
+      position: absolute;
+      top: 5px;
+      left: 8px;
+      z-index: 2;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: #00ff88;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+    }
+
+    #videoStatus {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 10px;
+      font-size: 0.72rem;
+      line-height: 1.4;
+      color: #9fc9b5;
+      background: rgba(5, 8, 12, 0.78);
+      pointer-events: none;
+    }
+
+    #videoRetryBtn {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      z-index: 3;
+      display: none;
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-width: 1px;
+      pointer-events: auto;
+    }
+
+    @media (max-width:768px) {
+      #videoWrap {
+        width: 140px;
+        height: 105px;
+        left: 10px;
+      }
+
+      #selfVideo {
+        width: 40px;
+        height: 30px;
+      }
+    }
+
+    #handCamCanvas {
+      position: absolute;
+      bottom: 60px;
+      right: 20px;
+      width: 180px;
+      height: 135px;
+      border: 2px solid rgba(0, 255, 136, 0.4);
+      border-radius: 8px;
+      display: none;
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       PAUSE MENU
+    ─────────────────────────────────────────────────────────────── */
+    #pauseScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      min-width: 260px;
+      display: none;
+    }
+
+    #pauseScreen h2 {
+      font-size: 1.8rem;
+      margin-bottom: 22px;
+      color: #fff;
+    }
+
+    #pauseScreen .btn {
+      display: block;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       GAME OVER SCREEN
+    ─────────────────────────────────────────────────────────────── */
+    #gameOverScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      min-width: 320px;
+      display: none;
+    }
+
+    #gameOverScreen h2 {
+      font-size: 2rem;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    #gameOverScreen .final-score {
+      font-size: 3rem;
+      font-weight: 900;
+      margin-bottom: 22px;
+      color: #00ff88;
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       TOAST NOTIFICATIONS
+    ─────────────────────────────────────────────────────────────── */
+    #toastContainer {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: rgba(0, 0, 0, 0.82);
+      border: 1px solid rgba(0, 255, 136, 0.4);
+      border-radius: 8px;
+      padding: 9px 22px;
+      font-size: 1rem;
+      color: #fff;
+      animation: toastIn 0.3s ease, toastOut 0.4s ease 2.3s forwards;
+      white-space: nowrap;
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes toastOut {
+      from {
+        opacity: 1;
+      }
+
+      to {
+        opacity: 0;
+        transform: translateY(-6px);
+      }
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       POINT SCORED FLASH
+    ─────────────────────────────────────────────────────────────── */
+    #pointFlash {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 0 30px rgba(0, 255, 136, 0.8);
+      opacity: 0;
+      transition: opacity 0.25s;
+      pointer-events: none;
+    }
+
+    #pointFlash.show {
+      opacity: 1;
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       LOADING
+    ─────────────────────────────────────────────────────────────── */
+    #loadingScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0a0a0f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 18px;
+      z-index: 50;
+    }
+
+    #loadingScreen h2 {
+      color: #00ff88;
+      font-size: 1.6rem;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(0, 255, 136, 0.2);
+      border-top-color: #00ff88;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ───────────────────────────────────────────────────────────────
+       RESPONSIVE CLAMP
+    ─────────────────────────────────────────────────────────────── */
+    @media (max-width:768px) {
+      #menuScreen {
+        min-width: 300px;
+        padding: 18px 20px;
+      }
+
+      #menuScreen h1 {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ════════════════════════════════════════════════════════════════
+     CANVAS
+════════════════════════════════════════════════════════════════ -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- ════════════════════════════════════════════════════════════════
+     OVERLAY UI
+════════════════════════════════════════════════════════════════ -->
+  <div id="overlay">
+
+    <!-- Loading -->
+    <div id="loadingScreen">
+      <div class="spinner"></div>
+      <h2>Loading Table Tennis 3D…</h2>
+    </div>
+
+    <!-- ── MENU ───────────────────────────────────────────────────── -->
+    <div id="menuScreen" class="panel" style="display:none;">
+      <h1>🏓 Table Tennis 3D</h1>
+      <p class="subtitle">Realistic 3D ping pong — multiplayer via Supabase Realtime</p>
+
+      <div class="menu-section">
+        <div class="menu-row">
+          <button class="btn" id="btnCreateRoom">Create Room</button>
+          <button class="btn" id="btnCPU">Play vs CPU</button>
+        </div>
+        <div class="menu-row">
+          <input class="room-input" id="joinCodeInput" maxlength="4" placeholder="CODE" type="text" />
+          <button class="btn" id="btnJoinRoom">Join Room</button>
+        </div>
+      </div>
+
+      <button class="btn" id="btnInstructions" style="font-size:0.82rem;padding:6px 18px;margin-top:4px;">
+        ▾ Controls &amp; Instructions
+      </button>
+
+      <div id="instructionsPanel">
+        <h3>Keyboard / Mouse</h3>
+        <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or Arrow keys — move paddle</p>
+        <p><kbd>Space</kbd> — serve / launch ball</p>
+        <p>Mouse drag over canvas — move paddle (grab-style)</p>
+        <p><kbd>Esc</kbd> — pause</p>
+        <h3 style="margin-top:10px;">Hand Tracking</h3>
+        <p>Click <em>📷 Enable Camera</em> in-game to use your webcam.</p>
+        <p>Move wrist left/right/forward/back → paddle follows.</p>
+        <p>Pinch thumb+index → serve trigger.</p>
+        <h3 style="margin-top:10px;">Multiplayer</h3>
+        <p>Replace <code>YOUR_SUPABASE_URL</code> and <code>YOUR_SUPABASE_ANON_KEY</code> at the top of the JS section
+          before hosting.</p>
+      </div>
+    </div>
+
+    <!-- ── LOBBY ──────────────────────────────────────────────────── -->
+    <div id="lobbyScreen" class="panel">
+      <h2 id="lobbyTitle">Waiting for opponent…</h2>
+      <div id="roomCodeDisplay">----</div>
+      <p id="lobbyStatus">Share this code with your opponent</p>
+      <button class="btn danger" id="btnLeaveLobby">Leave</button>
+    </div>
+
+    <!-- ── HUD ────────────────────────────────────────────────────── -->
+    <div id="hud">
+      <div id="scoreboard">
+        <!-- Player 1 block -->
+        <div class="player-block">
+          <div class="player-name" id="p1Name">Player 1</div>
+          <div class="score-num" id="p1Score">0</div>
+          <div class="serve-dot" id="p1ServeDot"></div>
+        </div>
+        <!-- Centre divider -->
+        <div class="score-divider">
+          <div class="score-sep">·</div>
+          <div class="score-to-win">FIRST TO 11</div>
+          <div class="score-sep">·</div>
+        </div>
+        <!-- Player 2 block -->
+        <div class="player-block">
+          <div class="player-name" id="p2Name">Player 2</div>
+          <div class="score-num" id="p2Score">0</div>
+          <div class="serve-dot" id="p2ServeDot"></div>
+        </div>
+      </div>
+      <div id="roomCodeHUD">ROOM: ----</div>
+      <div id="controlsHint">WASD / Mouse to move paddle &nbsp;·&nbsp; <kbd
+          style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:4px;padding:1px 6px;font-size:0.76rem;">Space</kbd>
+        to serve</div>
+      <button class="btn" id="cameraBtn" style="display:none;">📷 Enable Camera</button>
+    </div>
+
+    <!-- ── PAUSE ──────────────────────────────────────────────────── -->
+    <div id="pauseScreen" class="panel">
+      <h2>⏸ Paused</h2>
+      <button class="btn" id="btnResume">Resume</button>
+      <button class="btn danger" id="btnQuit">Quit to Menu</button>
+    </div>
+
+    <!-- ── GAME OVER ──────────────────────────────────────────────── -->
+    <div id="gameOverScreen" class="panel">
+      <h2 id="winnerText">Player 1 wins!</h2>
+      <div class="final-score" id="finalScore">0 – 0</div>
+      <button class="btn" id="btnPlayAgain">Play Again</button>
+      <button class="btn" id="btnGoMenu" style="margin-left:10px;">Main Menu</button>
+    </div>
+
+    <!-- ── NOTIFICATIONS ──────────────────────────────────────────── -->
+    <div id="toastContainer"></div>
+    <div id="pointFlash"></div>
+
+    <!-- Webcam overlay canvas -->
+    <canvas id="handCamCanvas"></canvas>
+
+    <!-- Opponent webcam (WebRTC) — only shown in online matches -->
+    <div id="videoWrap">
+      <div class="video-label">OPPONENT</div>
+      <video id="opponentVideo" autoplay playsinline muted></video>
+      <video id="selfVideo" autoplay playsinline muted></video>
+      <div id="videoStatus" style="display:none;"></div>
+      <button class="btn" id="videoRetryBtn" type="button">↻ Retry video</button>
+    </div>
+  </div><!-- /#overlay -->
+
+  <!-- ════════════════════════════════════════════════════════════════
+     GAME SCRIPT
+════════════════════════════════════════════════════════════════ -->
+  <script>
+    /*
+     * ╔══════════════════════════════════════════════════════════════════╗
+     * ║           TABLE TENNIS 3D — Complete Single-File Game           ║
+     * ╠══════════════════════════════════════════════════════════════════╣
+     * ║  SETUP INSTRUCTIONS                                             ║
+     * ║  ─────────────────────────────────────────────────────────────  ║
+     * ║  1. For multiplayer, create a free Supabase project at          ║
+     * ║     https://supabase.com                                        ║
+     * ║  2. In your project → Settings → API:                          ║
+     * ║       • Copy "Project URL"  → paste as SUPABASE_CONFIG.url     ║
+     * ║       • Copy "anon / public" key → paste as anonKey            ║
+     * ║  3. No database tables needed — uses Realtime Broadcast only.  ║
+     * ║  4. Open the file in any modern browser. For Play vs CPU,      ║
+     * ║     no Supabase config is needed.                              ║
+     * ╚══════════════════════════════════════════════════════════════════╝
+     */
+
+    'use strict';
+
+    // ============================================================
+    // CONFIG
+    // ============================================================
+    const SUPABASE_CONFIG = {
+      url: 'https://xmiwlwvamtvkxoreyidt.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtaXdsd3ZhbXR2a3hvcmV5aWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NTkyNDcsImV4cCI6MjEwODIzNTI0N30.NQZxl3uAOFVJHC1yi6_JiPnD0kkA2XZRTSsKOFrzDM4'
+    };
+
+    const GAME_CONFIG = {
+      tableLength: 2.74,   // metres (Z axis)
+      tableWidth: 1.525,  // metres (X axis)
+      tableHeight: 0.76,   // metres (Y — top surface)
+      tableThickness: 0.05,
+      netHeight: 0.1525,
+      ballRadius: 0.02,
+      gravity: 9.81,
+      restitution: 0.80,   // bounce coefficient
+      friction: 0.90,
+      airResistance: 0.999,
+      paddleRadius: 0.08,
+      pointsToWin: 11,
+      paddleSpeed: 4.0,    // keyboard speed m/s
+      aiSpeed: 2.8,
+      networkFps: 30,
+    };
+
+    // ============================================================
+    // UTILITIES
+    // ============================================================
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function rnd(lo, hi) { return lo + Math.random() * (hi - lo); }
+    function genCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
+
+    // ============================================================
+    // SCENE MANAGER
+    // ============================================================
+    class SceneManager {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.scene = new THREE.Scene();
+        this.camera = null;
+        this.renderer = null;
+        this._buildRenderer();
+        this._buildCamera();
+        this._buildLights();
+        this._buildEnvironment();
+        this._buildTable();
+        this._buildNet();
+        this._buildBall();
+        this._buildPaddles();
+        window.addEventListener('resize', () => this._onResize());
+      }
+
+      // ── Renderer ────────────────────────────────────────────────
+      _buildRenderer() {
+        const r = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+        r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        r.setSize(window.innerWidth, window.innerHeight);
+        r.shadowMap.enabled = true;
+        r.shadowMap.type = THREE.PCFSoftShadowMap;
+        // outputColorSpace (r152+) vs outputEncoding (r134 and below)
+        if (r.outputColorSpace !== undefined) {
+          r.outputColorSpace = THREE.SRGBColorSpace;
+        } else if (r.outputEncoding !== undefined) {
+          r.outputEncoding = THREE.sRGBEncoding || 3001;
+        }
+        r.toneMapping = THREE.ACESFilmicToneMapping;
+        r.toneMappingExposure = 1.1;
+        this.renderer = r;
+      }
+
+      // ── Camera ──────────────────────────────────────────────────
+      _buildCamera() {
+        const aspect = window.innerWidth / window.innerHeight;
+        this.camera = new THREE.PerspectiveCamera(55, aspect, 0.01, 80);
+        this.setCameraForPlayer(1);
+      }
+
+      setCameraForPlayer(playerNum) {
+        if (playerNum === 1) {
+          this.camera.position.set(0, 1.55, 2.6);
+        } else {
+          this.camera.position.set(0, 1.55, -2.6);
+        }
+        this.camera.lookAt(0, GAME_CONFIG.tableHeight, 0);
+      }
+
+      // ── Lights ──────────────────────────────────────────────────
+      _buildLights() {
+        // Ambient
+        const ambient = new THREE.AmbientLight(0x223355, 0.6);
+        this.scene.add(ambient);
+
+        // Main spotlight from above
+        const spot = new THREE.SpotLight(0xffffff, 3.0, 8, Math.PI / 5, 0.35, 1.5);
+        spot.position.set(0, 4.5, 0);
+        spot.target.position.set(0, GAME_CONFIG.tableHeight, 0);
+        spot.castShadow = true;
+        spot.shadow.mapSize.set(2048, 2048);
+        spot.shadow.camera.near = 0.5;
+        spot.shadow.camera.far = 10;
+        this.scene.add(spot);
+        this.scene.add(spot.target);
+
+        // Point lights above each end
+        const pl1 = new THREE.PointLight(0x8899ff, 1.2, 5);
+        pl1.position.set(0, 2.5, 1.8);
+        this.scene.add(pl1);
+
+        const pl2 = new THREE.PointLight(0xff9988, 1.2, 5);
+        pl2.position.set(0, 2.5, -1.8);
+        this.scene.add(pl2);
+
+        this.lights = { ambient, spot, pl1, pl2 };
+      }
+
+      // ── Environment ─────────────────────────────────────────────
+      _buildEnvironment() {
+        // Floor
+        const floorGeo = new THREE.PlaneGeometry(16, 16);
+        const floorMat = new THREE.MeshStandardMaterial({
+          color: 0x1a1008, roughness: 0.9, metalness: 0.05
+        });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+
+        // Background fog
+        this.scene.background = new THREE.Color(0x070810);
+        this.scene.fog = new THREE.FogExp2(0x070810, 0.09);
+
+        // Ceiling (dim)
+        const ceilGeo = new THREE.PlaneGeometry(16, 16);
+        const ceilMat = new THREE.MeshStandardMaterial({ color: 0x080810 });
+        const ceil = new THREE.Mesh(ceilGeo, ceilMat);
+        ceil.rotation.x = Math.PI / 2;
+        ceil.position.y = 5;
+        this.scene.add(ceil);
+      }
+
+      // ── Table ───────────────────────────────────────────────────
+      _buildTable() {
+        const { tableLength: L, tableWidth: W, tableHeight: H, tableThickness: T } = GAME_CONFIG;
+
+        // Table surface
+        const surfGeo = new THREE.BoxGeometry(W, T, L);
+        const surfMat = new THREE.MeshStandardMaterial({
+          color: 0x1a6b3c, roughness: 0.55, metalness: 0.05
+        });
+        const surface = new THREE.Mesh(surfGeo, surfMat);
+        surface.position.set(0, H - T / 2, 0);
+        surface.castShadow = true;
+        surface.receiveShadow = true;
+        this.scene.add(surface);
+
+        // Lines (thin BoxGeometry planes on top)
+        const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+        const lineH = 0.002;
+        const lineY = H + lineH / 2;
+
+        // Center line (lengthwise)
+        this._addLine(0.012, lineH, L + 0.02, lineMat, [0, lineY, 0]);
+        // Left edge line
+        this._addLine(0.012, lineH, L + 0.02, lineMat, [-W / 2, lineY, 0]);
+        // Right edge line
+        this._addLine(0.012, lineH, L + 0.02, lineMat, [W / 2, lineY, 0]);
+        // Player 1 end line
+        this._addLine(W + 0.02, lineH, 0.012, lineMat, [0, lineY, L / 2]);
+        // Player 2 end line
+        this._addLine(W + 0.02, lineH, 0.012, lineMat, [0, lineY, -L / 2]);
+        // Center horizontal divider
+        this._addLine(W + 0.02, lineH, 0.012, lineMat, [0, lineY, 0]);
+
+        // Legs
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.8 });
+        const offX = W / 2 - 0.06;
+        const offZ = L / 2 - 0.08;
+        [[offX, offZ], [-offX, offZ], [offX, -offZ], [-offX, -offZ]].forEach(([lx, lz]) => {
+          const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, H - T, 0.06), legMat);
+          leg.position.set(lx, (H - T) / 2, lz);
+          leg.castShadow = true;
+          leg.receiveShadow = true;
+          this.scene.add(leg);
+        });
+
+        this.tableTop = H; // store for physics
+      }
+
+      _addLine(w, h, d, mat, [x, y, z]) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        m.position.set(x, y, z);
+        m.receiveShadow = true;
+        this.scene.add(m);
+      }
+
+      // ── Net ─────────────────────────────────────────────────────
+      _buildNet() {
+        const { tableWidth: W, tableHeight: H, netHeight: NH } = GAME_CONFIG;
+        const netGroup = new THREE.Group();
+
+        // Net plane (translucent)
+        const netGeo = new THREE.PlaneGeometry(W, NH, Math.floor(W / 0.025), Math.floor(NH / 0.025));
+        const netMat = new THREE.MeshStandardMaterial({
+          color: 0xdddddd,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.55,
+        });
+        const netMesh = new THREE.Mesh(netGeo, netMat);
+        netMesh.position.set(0, H + NH / 2, 0);
+        netGroup.add(netMesh);
+
+        // Net posts
+        const postMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6 });
+        [-W / 2, W / 2].forEach(px => {
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, NH + 0.02, 8), postMat);
+          post.position.set(px, H + NH / 2, 0);
+          post.castShadow = true;
+          netGroup.add(post);
+        });
+
+        // Net top tape
+        const tape = new THREE.Mesh(new THREE.BoxGeometry(W + 0.04, 0.018, 0.012),
+          new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        tape.position.set(0, H + NH, 0);
+        netGroup.add(tape);
+
+        this.scene.add(netGroup);
+        this.netGroup = netGroup;
+      }
+
+      // ── Ball ────────────────────────────────────────────────────
+      _buildBall() {
+        const geo = new THREE.SphereGeometry(GAME_CONFIG.ballRadius, 20, 20);
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0xffeedd,
+          roughness: 0.3,
+          metalness: 0.0,
+          emissive: 0x332200,
+          emissiveIntensity: 0.05,
+        });
+        this.ball = new THREE.Mesh(geo, mat);
+        this.ball.castShadow = true;
+        this.ball.position.set(0, GAME_CONFIG.tableHeight + 0.3, 1.0);
+        this.scene.add(this.ball);
+
+        // ── Ball Motion Trail ──────────────────────────────────────
+        this._trailMaxPoints = 28;   // number of ghost spheres in trail
+        this._trailSpheres = [];
+        this._trailPositions = [];   // ring buffer of recent ball positions
+
+        const trailGeo = new THREE.SphereGeometry(GAME_CONFIG.ballRadius, 8, 8);
+        for (let i = 0; i < this._trailMaxPoints; i++) {
+          const t = i / this._trailMaxPoints; // 0 = oldest, 1 = newest
+          const trailMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(0.08 + t * 0.22, 1.0, 0.55 + t * 0.2),
+            transparent: true,
+            opacity: 0,           // start invisible; updated each frame
+            depthWrite: false,
+          });
+          const sphere = new THREE.Mesh(trailGeo, trailMat);
+          sphere.visible = false;
+          sphere.renderOrder = -1;
+          this.scene.add(sphere);
+          this._trailSpheres.push(sphere);
+        }
+      }
+
+      // Call every frame with current ball world position
+      updateTrail(pos, speed) {
+        // Push current position into ring buffer
+        this._trailPositions.push({ x: pos.x, y: pos.y, z: pos.z });
+        if (this._trailPositions.length > this._trailMaxPoints) {
+          this._trailPositions.shift();
+        }
+
+        const n = this._trailPositions.length;
+        const active = speed > 0.5; // only show trail when ball is moving fast enough
+
+        for (let i = 0; i < this._trailMaxPoints; i++) {
+          const sphere = this._trailSpheres[i];
+          const bufIdx = n - this._trailMaxPoints + i; // index into ring buffer
+
+          if (!active || bufIdx < 0 || bufIdx >= n) {
+            sphere.visible = false;
+            continue;
+          }
+
+          const p = this._trailPositions[bufIdx];
+          const age = (i + 1) / this._trailMaxPoints; // 0 = oldest tail, 1 = newest (closest to ball)
+          const sc = 0.25 + age * 0.75;              // scale: small at tail, larger near ball
+
+          sphere.visible = true;
+          sphere.position.set(p.x, p.y, p.z);
+          sphere.scale.setScalar(sc);
+
+          // Fade + color shift: orange-white near ball, red at tail
+          sphere.material.opacity = age * age * 0.65 * Math.min(1, speed / 4);
+          sphere.material.color.setHSL(
+            0.06 + age * 0.18,   // hue: warm orange → cool yellow-white
+            1.0,
+            0.5 + age * 0.3
+          );
+        }
+      }
+
+      // Call when ball resets (serve) to clear trail
+      clearTrail() {
+        this._trailPositions = [];
+        this._trailSpheres.forEach(s => { s.visible = false; });
+      }
+
+      // ── Paddles ─────────────────────────────────────────────────
+      _buildPaddles() {
+        this.paddle1 = this._makePaddle(0xdd2233, 0x222222, 1);
+        this.paddle2 = this._makePaddle(0x2255dd, 0x222222, -1);
+        this.scene.add(this.paddle1);
+        this.scene.add(this.paddle2);
+      }
+
+      _makePaddle(faceColor, handleColor, side) {
+        const group = new THREE.Group();
+
+        // ── Blade: VERTICAL (like a real table tennis paddle) ──────
+        // Rounded-ish blade: wide × tall × thin
+        const bladeGeo = new THREE.BoxGeometry(0.16, 0.18, 0.012);
+        const bladeFront = new THREE.MeshStandardMaterial({
+          color: faceColor, roughness: 0.35, metalness: 0.08
+        });
+        const bladeBack = new THREE.MeshStandardMaterial({
+          color: 0x111111, roughness: 0.6
+        });
+        // 6-material array: +x,-x,+y,-y,+z,-z
+        const blade = new THREE.Mesh(bladeGeo, [
+          bladeBack, bladeBack, bladeBack, bladeBack,
+          bladeFront, bladeBack   // front face (towards opponent) = color
+        ]);
+        blade.castShadow = true;
+        // Position blade so its bottom centre is at group origin
+        blade.position.set(0, 0.09, 0);
+        group.add(blade);
+
+        // ── Edge band (dark rim around blade) ─────────────────────
+        const rimGeo = new THREE.BoxGeometry(0.164, 0.184, 0.008);
+        const rimMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+        const rim = new THREE.Mesh(rimGeo, rimMat);
+        rim.position.set(0, 0.09, -0.002); // just behind blade
+        group.add(rim);
+
+        // ── Handle: vertical grip below blade ─────────────────────
+        const handleGeo = new THREE.BoxGeometry(0.038, 0.12, 0.022);
+        const handleMat = new THREE.MeshStandardMaterial({
+          color: handleColor, roughness: 0.85
+        });
+        const handle = new THREE.Mesh(handleGeo, handleMat);
+        handle.position.set(0, -0.06, 0);  // hangs below blade
+        handle.castShadow = true;
+        group.add(handle);
+
+        // ── Place group: stand upright above table ─────────────────
+        const { tableLength: L, tableHeight: H } = GAME_CONFIG;
+        // Y: table top + half-handle so blade floats above surface
+        group.position.set(0, H + 0.13, side * (L / 2 - 0.25));
+        // Slight lean toward net (rotate around X) — keep paddle mostly vertical
+        group.rotation.x = side > 0 ? 0.12 : -0.12;
+        return group;
+      }
+
+      // ── Resize ──────────────────────────────────────────────────
+      _onResize() {
+        const w = window.innerWidth, h = window.innerHeight;
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(w, h);
+      }
+
+      render() {
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
+
+    // ============================================================
+    // PHYSICS ENGINE
+    // ============================================================
+    class PhysicsEngine {
+      constructor(sceneManager) {
+        this.sm = sceneManager;
+        // Ball state
+        this.ballPos = { x: 0, y: GAME_CONFIG.tableHeight + 0.3, z: 1.0 };
+        this.ballVel = { x: 0, y: 0, z: 0 };
+        this.ballSpin = { x: 0, y: 0, z: 0 };
+        // Paddle position history for velocity estimation
+        this.p1History = [];
+        this.p2History = [];
+        this.lastNetHit = 0;
+        // Track which side ball is allowed to be on for serve validation
+        this.serveState = null; // null | 'server_side' | 'receiver_side' | 'done'
+        this.servingPlayer = 1;
+        // Scoring: who last hit the ball and did it bounce on the receiver's half?
+        this.lastHitter = 1;
+        this.bouncedOnReceiversSide = false;
+      }
+
+      reset(servingPlayer) {
+        this.servingPlayer = servingPlayer;
+        const { tableHeight: H, tableLength: L } = GAME_CONFIG;
+        const side = servingPlayer === 1 ? 1 : -1;
+        this.ballPos = { x: 0, y: H + 0.18, z: side * (L / 2 - 0.3) };
+        this.ballVel = { x: 0, y: 0, z: 0 };
+        this.ballSpin = { x: 0, y: 0, z: 0 };
+        this.serveState = null;
+        this.lastHitter = servingPlayer;          // who last struck the ball
+        this.bouncedOnReceiversSide = false;      // has ball bounced on receiver's half?
+        this._syncBallMesh();
+      }
+
+      // Returns: null | 'net' | 'p1_scores' | 'p2_scores'
+      update(dt, p1PaddlePos, p2PaddlePos) {
+        const B = this.ballPos;
+        const V = this.ballVel;
+        const { tableLength: L, tableWidth: W, tableHeight: H,
+          netHeight: NH, ballRadius: R, restitution, friction,
+          airResistance, gravity } = GAME_CONFIG;
+
+        // Record paddle history
+        this._recordHistory(this.p1History, p1PaddlePos);
+        this._recordHistory(this.p2History, p2PaddlePos);
+
+        // Spin drag
+        this.ballSpin.x *= 0.98;
+        this.ballSpin.y *= 0.98;
+        this.ballSpin.z *= 0.98;
+
+        // Physics integration (sub-step for stability)
+        const STEPS = 4;
+        const sdt = dt / STEPS;
+        let event = null;
+
+        for (let s = 0; s < STEPS; s++) {
+          // Gravity
+          V.y -= gravity * sdt;
+          // Air resistance
+          V.x *= Math.pow(airResistance, sdt * 60);
+          V.y *= Math.pow(airResistance, sdt * 60);
+          V.z *= Math.pow(airResistance, sdt * 60);
+          // Spin effect (Magnus-like)
+          V.x += this.ballSpin.z * sdt * 0.5;
+          V.z -= this.ballSpin.x * sdt * 0.5;
+
+          // Update position
+          B.x += V.x * sdt;
+          B.y += V.y * sdt;
+          B.z += V.z * sdt;
+
+          // ── Table bounce ──────────────────────────────────────────
+          if (B.y <= H + R) {
+            const inX = Math.abs(B.x) <= W / 2 + R;
+            const inZ = Math.abs(B.z) <= L / 2 + R;
+            if (inX && inZ && V.y < 0) {
+              B.y = H + R;
+              V.y = -V.y * restitution;
+              V.x *= friction;
+              V.z *= friction;
+              // Spin from friction on table
+              this.ballSpin.x += V.z * 0.3;
+              this.ballSpin.z -= V.x * 0.3;
+
+              // Track whether ball has landed on the receiver's side
+              // Receiver is the opponent of lastHitter:
+              //   lastHitter=1 (player 1 hit) → receiver's side is z < 0
+              //   lastHitter=2 (player 2 hit) → receiver's side is z > 0
+              const onReceiversSide = this.lastHitter === 1 ? B.z < 0 : B.z > 0;
+              if (onReceiversSide) this.bouncedOnReceiversSide = true;
+            } else if (!inX || !inZ) {
+              // Off table — will be caught by out-of-bounds check
+            }
+          }
+
+          // ── Net collision ──────────────────────────────────────────
+          const now = performance.now();
+          if (Math.abs(B.z) < 0.025 + R && B.y < H + NH + R && B.y > H &&
+            Math.abs(B.x) <= W / 2 + 0.02 && now - this.lastNetHit > 200) {
+            this.lastNetHit = now;
+            V.z = -V.z * 0.55;
+            V.y = Math.abs(V.y) * 0.4;
+            V.x *= 0.7;
+            B.z = (B.z > 0 ? 1 : -1) * (0.025 + R + 0.002);
+            event = 'net';
+          }
+
+          // ── Paddle 1 collision ────────────────────────────────────
+          const hit1 = this._checkPaddleHit(B, V, p1PaddlePos, this.p1History, 1);
+          if (hit1) event = hit1;
+
+          // ── Paddle 2 collision ────────────────────────────────────
+          const hit2 = this._checkPaddleHit(B, V, p2PaddlePos, this.p2History, 2);
+          if (hit2) event = hit2;
+        }
+
+        // ── Out of bounds ─────────────────────────────────────────
+        const outResult = this._checkOutOfBounds();
+        if (outResult) return outResult;
+
+        this._syncBallMesh();
+        return event;
+      }
+
+      _checkPaddleHit(B, V, paddlePos, history, paddleNum) {
+        if (!paddlePos) return null;
+        const dx = B.x - paddlePos.x;
+        const dy = B.y - paddlePos.y;
+        const dz = B.z - paddlePos.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (dist < GAME_CONFIG.paddleRadius + GAME_CONFIG.ballRadius) {
+          // Estimate paddle velocity from history
+          const pv = this._estimatePaddleVelocity(history);
+
+          // Reflect the closest axis (simplified)
+          const nx = dx / dist, ny = dy / dist, nz = dz / dist;
+          const dot = V.x * nx + V.y * ny + V.z * nz;
+          V.x = V.x - 2 * dot * nx + pv.x * 1.2;
+          V.y = V.y - 2 * dot * ny + pv.y * 1.2 + Math.abs(V.y) * 0.1;
+          V.z = V.z - 2 * dot * nz + pv.z * 1.2;
+
+          // Ensure ball is moving away from paddle
+          if (paddleNum === 1 && V.z > 0) V.z = -V.z;
+          if (paddleNum === 2 && V.z < 0) V.z = -V.z;
+
+          // Spin from paddle
+          this.ballSpin.x += pv.z * 0.3;
+          this.ballSpin.z -= pv.x * 0.3;
+
+          // Record who hit the ball; reset bounce tracker for new rally leg
+          this.lastHitter = paddleNum;
+          this.bouncedOnReceiversSide = false;
+
+          // Push ball out of paddle
+          const push = (GAME_CONFIG.paddleRadius + GAME_CONFIG.ballRadius + 0.005);
+          const B_ref = this.ballPos;
+          B_ref.x = paddlePos.x + nx * push;
+          B_ref.y = paddlePos.y + ny * push;
+          B_ref.z = paddlePos.z + nz * push;
+
+          return 'paddle_hit';
+        }
+        return null;
+      }
+
+      _recordHistory(history, pos) {
+        if (!pos) return;
+        history.push({ ...pos, t: performance.now() });
+        if (history.length > 5) history.shift();
+      }
+
+      _estimatePaddleVelocity(history) {
+        if (history.length < 2) return { x: 0, y: 0, z: 0 };
+        const a = history[history.length - 2];
+        const b = history[history.length - 1];
+        const dt = (b.t - a.t) / 1000 || 0.016;
+        return {
+          x: (b.x - a.x) / dt,
+          y: (b.y - a.y) / dt,
+          z: (b.z - a.z) / dt,
+        };
+      }
+
+      _checkOutOfBounds() {
+        const { tableHeight: H, tableLength: L, tableWidth: W } = GAME_CONFIG;
+        const p = this.ballPos;
+
+        const isOut =
+          p.y < H - 0.5 ||                        // fell far below table
+          Math.abs(p.x) > W / 2 + 0.55 ||         // off the sides
+          p.z > L / 2 + 0.4 ||                   // past player 1 end line
+          p.z < -(L / 2 + 0.4);                   // past player 2 end line
+
+        if (!isOut) return null;
+
+        // ── Correct table-tennis scoring ────────────────────────────
+        // Rule: if the ball BOUNCED on the receiver's side, the RECEIVER loses.
+        //       If it never bounced there (hitter's shot went out), the HITTER loses.
+        if (this.bouncedOnReceiversSide) {
+          // Ball landed on receiver's half — receiver failed to return it
+          // → the hitter (lastHitter) scores
+          return this.lastHitter === 1 ? 'p1_scores' : 'p2_scores';
+        } else {
+          // Ball never landed on receiver's half — hitter's shot was out
+          // → the receiver scores
+          return this.lastHitter === 1 ? 'p2_scores' : 'p1_scores';
+        }
+      }
+
+      _syncBallMesh() {
+        const m = this.sm.ball;
+        m.position.set(this.ballPos.x, this.ballPos.y, this.ballPos.z);
+      }
+
+      // Launch ball for serving
+      serve(servingPlayer) {
+        const { tableLength: L, tableHeight: H } = GAME_CONFIG;
+        const side = servingPlayer === 1 ? 1 : -1;
+        const speed = rnd(2.8, 3.4);
+        this.ballVel = {
+          x: rnd(-0.6, 0.6),
+          y: rnd(1.8, 2.5),
+          z: -side * speed
+        };
+        // Server is the first hitter; ball hasn't bounced on receiver's side yet
+        this.lastHitter = servingPlayer;
+        this.bouncedOnReceiversSide = false;
+      }
+    }
+
+    // ============================================================
+    // INPUT MANAGER
+    // ============================================================
+    class InputManager {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.keys = {};
+        this.mousePos = { x: 0, y: 0 };
+        this.mouseDelta = { x: 0, y: 0 };
+        this.spacePressed = false;
+        this.mouseClicked = false;
+        this.handTracking = false;
+        this.handData = null; // { x, y, z, pinch }
+        this._mediaPipe = null;
+        this._camUtils = null;
+        this._videoEl = null;
+        this._handCanvas = document.getElementById('handCamCanvas');
+        this._handCtx = this._handCanvas.getContext('2d');
+
+        this._bindKeyboard();
+        this._bindMouse();
+      }
+
+      _bindKeyboard() {
+        window.addEventListener('keydown', e => {
+          this.keys[e.code] = true;
+          if (e.code === 'Space') { this.spacePressed = true; e.preventDefault(); }
+        });
+        window.addEventListener('keyup', e => {
+          this.keys[e.code] = false;
+          if (e.code === 'Space') this.spacePressed = false;
+        });
+      }
+
+      _bindMouse() {
+        this.canvas.addEventListener('mousemove', e => {
+          const rect = this.canvas.getBoundingClientRect();
+          const nx = (e.clientX - rect.left) / rect.width;   // 0..1
+          const ny = (e.clientY - rect.top) / rect.height;  // 0..1
+          this.mousePos = { x: nx, y: ny };
+        });
+        this.canvas.addEventListener('mousedown', () => { this.mouseClicked = true; });
+        this.canvas.addEventListener('mouseup', () => { this.mouseClicked = false; });
+      }
+
+      // Returns paddle target {x,y,z} in world space for a given player
+      getPaddleInput(playerNum, dt) {
+        const { tableWidth: W, tableLength: L, tableHeight: H, paddleSpeed } = GAME_CONFIG;
+        const side = playerNum === 1 ? 1 : -1;
+        // Default paddle position
+        const defZ = side * (L / 2 - 0.25);
+        const defY = H + 0.12;
+        let dx = 0, dz = 0, dy = 0;
+
+        // Keyboard
+        if (this.keys['KeyA'] || this.keys['ArrowLeft']) dx -= paddleSpeed * dt;
+        if (this.keys['KeyD'] || this.keys['ArrowRight']) dx += paddleSpeed * dt;
+        if (this.keys['KeyW'] || this.keys['ArrowUp']) dz -= paddleSpeed * dt * side;
+        if (this.keys['KeyS'] || this.keys['ArrowDown']) dz += paddleSpeed * dt * side;
+
+        return { dx, dy, dz };
+      }
+
+      consumeSpace() { const v = this.spacePressed; this.spacePressed = false; return v; }
+      consumeClick() { const v = this.mouseClicked; this.mouseClicked = false; return v; }
+
+      getMouseNorm() { return this.mousePos; }
+
+      consumeServe() {
+        if (this.spacePressed) { this.spacePressed = false; return true; }
+        return false;
+      }
+
+      // ── MediaPipe ───────────────────────────────────────────────
+      async enableHandTracking(onReady, onError) {
+        try {
+          // Dynamically load MediaPipe scripts
+          await this._loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.min.js');
+          await this._loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js');
+
+          // Create hidden video element
+          this._videoEl = document.createElement('video');
+          this._videoEl.style.display = 'none';
+          document.body.appendChild(this._videoEl);
+
+          const Hands = window.Hands;
+          const Camera = window.Camera;
+
+          if (!Hands || !Camera) throw new Error('MediaPipe not available');
+
+          const hands = new Hands({
+            locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}`
+          });
+          hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.6,
+          });
+          hands.onResults(results => this._onHandResults(results));
+          await hands.initialize();
+
+          const cam = new Camera(this._videoEl, {
+            onFrame: async () => { await hands.send({ image: this._videoEl }); },
+            width: 320, height: 240,
+          });
+          await cam.start();
+
+          this.handTracking = true;
+          this._handCanvas.style.display = 'block';
+          onReady && onReady();
+        } catch (err) {
+          console.warn('Hand tracking failed:', err);
+          onError && onError(err);
+        }
+      }
+
+      _loadScript(src) {
+        return new Promise((resolve, reject) => {
+          if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+
+      _onHandResults(results) {
+        const cvs = this._handCanvas;
+        const ctx = this._handCtx;
+        const { tableWidth: W, tableLength: L, tableHeight: H } = GAME_CONFIG;
+
+        // Mirror video preview
+        if (this._videoEl && cvs.width > 0) {
+          ctx.save();
+          ctx.scale(-1, 1);
+          ctx.drawImage(this._videoEl, -cvs.width, 0, cvs.width, cvs.height);
+          ctx.restore();
+        }
+
+        if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+          this.handData = null;
+          return;
+        }
+
+        const lm = results.multiHandLandmarks[0];
+        const wrist = lm[0];
+        const indexTip = lm[8];
+        const thumbTip = lm[4];
+        const middleTip = lm[12];
+
+        // Palm height (wrist→middle tip distance)
+        const palmDist = Math.hypot(
+          middleTip.x - wrist.x,
+          middleTip.y - wrist.y
+        );
+
+        // Pinch detection
+        const pinchDist = Math.hypot(
+          thumbTip.x - indexTip.x,
+          thumbTip.y - indexTip.y
+        );
+        const pinch = pinchDist < 0.07;
+
+        // Map to paddle position (Player 1 perspective)
+        const px = lerp(-W / 2, W / 2, 1 - wrist.x);
+        const pz = lerp(L / 2 - 0.1, 0.05, wrist.y);
+        const py = H + 0.05 + clamp(palmDist * 3, 0, 0.35);
+
+        this.handData = { x: px, y: py, z: pz, pinch };
+
+        // Draw landmarks on preview
+        ctx.fillStyle = '#00ff88';
+        lm.forEach(pt => {
+          ctx.beginPath();
+          ctx.arc(cvs.width * (1 - pt.x), cvs.height * pt.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        // Draw pinch indicator
+        if (pinch) {
+          ctx.fillStyle = 'rgba(255,100,0,0.7)';
+          ctx.fillRect(0, 0, 12, 12);
+        }
+      }
+    }
+
+    // ============================================================
+    // NETWORK MANAGER
+    // ============================================================
+    class NetworkManager {
+      constructor() {
+        this.channel = null;
+        this.supabase = null;
+        this.roomCode = null;
+        this.isHost = false;
+        this.connected = false;
+        this.opponentConnected = false;
+        this.onOpponentPaddle = null;
+        this.onBallSync = null;
+        this.onGameEvent = null;
+        this.onScoreUpdate = null;
+        this.onSignal = null;       // WebRTC signalling (video chat)
+        this._sendInterval = null;
+      }
+
+      _isConfigured() {
+        return SUPABASE_CONFIG.url !== 'YOUR_SUPABASE_URL' &&
+          SUPABASE_CONFIG.anonKey !== 'YOUR_SUPABASE_ANON_KEY';
+      }
+
+      init() {
+        if (!this._isConfigured()) return false;
+        try {
+          this.supabase = supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+          return true;
+        } catch (e) {
+          console.warn('Supabase init failed:', e);
+          return false;
+        }
+      }
+
+      async createRoom() {
+        if (!this.init()) return { ok: false, error: 'Supabase not configured' };
+        this.roomCode = genCode();
+        this.isHost = true;
+        return await this._subscribeToChannel();
+      }
+
+      async joinRoom(code) {
+        if (!this.init()) return { ok: false, error: 'Supabase not configured' };
+        this.roomCode = code.trim().toUpperCase();
+        this.isHost = false;
+        const result = await this._subscribeToChannel();
+        if (result.ok) {
+          // Announce presence
+          this._send('game_event', { type: 'ready', isGuest: true });
+        }
+        return result;
+      }
+
+      async _subscribeToChannel() {
+        try {
+          const ch = this.supabase.channel(`game:${this.roomCode}`);
+
+          ch.on('broadcast', { event: 'paddle_move' }, ({ payload }) => {
+            this.onOpponentPaddle && this.onOpponentPaddle(payload);
+          });
+          ch.on('broadcast', { event: 'ball_sync' }, ({ payload }) => {
+            this.onBallSync && this.onBallSync(payload);
+          });
+          ch.on('broadcast', { event: 'game_event' }, ({ payload }) => {
+            this.onGameEvent && this.onGameEvent(payload);
+            if (payload.type === 'ready' && this.isHost) {
+              this.opponentConnected = true;
+            }
+          });
+          ch.on('broadcast', { event: 'rtc_signal' }, ({ payload }) => {
+            this.onSignal && this.onSignal(payload);
+          });
+          ch.on('broadcast', { event: 'score_update' }, ({ payload }) => {
+            this.onScoreUpdate && this.onScoreUpdate(payload);
+          });
+
+          await new Promise((resolve, reject) => {
+            ch.subscribe(status => {
+              if (status === 'SUBSCRIBED') resolve();
+              if (status === 'CHANNEL_ERROR') reject(new Error('Channel error'));
+            });
+          });
+
+          this.channel = ch;
+          this.connected = true;
+          return { ok: true, code: this.roomCode };
+        } catch (e) {
+          return { ok: false, error: e.message };
+        }
+      }
+
+      _send(event, payload) {
+        if (!this.channel || !this.connected) return;
+        this.channel.send({ type: 'broadcast', event, payload }).catch(() => { });
+      }
+
+      sendPaddleMove(pos) {
+        this._send('paddle_move', {
+          x: pos.x, y: pos.y, z: pos.z,
+          rotX: pos.rotX || 0, rotY: pos.rotY || 0, rotZ: pos.rotZ || 0,
+          ts: Date.now()
+        });
+      }
+
+      sendBallSync(pos, vel) {
+        if (!this.isHost) return;
+        this._send('ball_sync', {
+          x: pos.x, y: pos.y, z: pos.z,
+          vx: vel.x, vy: vel.y, vz: vel.z,
+          ts: Date.now()
+        });
+      }
+
+      sendSignal(data) {
+        this._send('rtc_signal', data);
+      }
+
+      sendScoreUpdate(data) {
+        this._send('score_update', data);
+      }
+
+      sendGameEvent(type, extra = {}) {
+        this._send('game_event', { type, ...extra });
+      }
+
+      async disconnect() {
+        if (this.channel) {
+          await this.supabase.removeChannel(this.channel);
+          this.channel = null;
+          this.connected = false;
+        }
+      }
+    }
+
+    // ============================================================
+    // VIDEO CHAT  — WebRTC peer-to-peer webcam video (video only, no audio).
+    // Signalling reuses the existing Supabase broadcast channel via the
+    // "rtc_signal" event: the host creates the offer, the guest answers.
+    // The game never depends on it — every failure degrades to "no video".
+    // ============================================================
+    const RTC_CONFIG = {
+      iceServers: [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+        // Strict corporate / symmetric NATs need a TURN relay. Add one here if needed:
+        // { urls: 'turn:your.turn.host:3478', username: 'user', credential: 'pass' }
+      ]
+    };
+
+    class VideoChat {
+      constructor(network, ui) {
+        this.net = network;
+        this.ui = ui;
+        this.$wrap = document.getElementById('videoWrap');
+        this.$remote = document.getElementById('opponentVideo');
+        this.$local = document.getElementById('selfVideo');
+        this.$status = document.getElementById('videoStatus');
+        this.$retry = document.getElementById('videoRetryBtn');
+
+        this.active = false;
+        this.isHost = false;
+        this.mediaReady = false;     // local camera request finished (granted or not)
+        this.localStream = null;
+        this.pc = null;
+        this.gen = 0;                // negotiation generation — drops stale signals
+        this.peerReady = false;      // host: guest has announced it is ready
+        this.offerSentAt = 0;
+        this.autoRetries = 0;
+        this.pendingCandidates = [];
+        this.earlySignals = [];      // signals that arrived before we were ready
+        this._session = 0;
+        this._gotOffer = false;
+        this._gotRemoteTrack = false;
+        this._readyTimer = null;
+        this._connTimer = null;
+        this._retryTimer = null;
+
+        // Hide the status overlay as soon as opponent frames are actually playing
+        this.$remote.addEventListener('playing', () => this._setStatus(''));
+        this.$retry.addEventListener('click', () => this.retry());
+      }
+
+      // ── Public API ───────────────────────────────────────────────
+      async start(isHost) {
+        if (this.active) return;               // idempotent (e.g. "Play Again")
+        this.active = true;
+        this.isHost = isHost;
+        this.mediaReady = false;
+        this.autoRetries = 0;
+        this.peerReady = false;
+        const sid = ++this._session;
+
+        this.$wrap.style.display = 'block';
+        this.$retry.style.display = 'none';
+        this._setStatus('Requesting camera…');
+
+        const stream = await this._getLocalMedia();
+        if (sid !== this._session) {           // stopped while the permission prompt was open
+          if (stream) stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        this.localStream = stream;
+        if (stream) {
+          this.$local.srcObject = stream;
+          this.$local.style.display = 'block';
+        }
+        this.mediaReady = true;
+
+        // Handle anything the opponent sent while our permission prompt was open
+        const queued = this.earlySignals.splice(0).filter(s => Date.now() - s.at < 60000);
+        for (const s of queued) await this.handleSignal(s.msg);
+        if (sid !== this._session) return;
+
+        if (!this.pc) {
+          if (this.isHost) {
+            this._setStatus('Waiting for opponent video…');
+          } else {
+            this._setStatus('Connecting video…');
+            this._announceReady(false);
+          }
+        }
+      }
+
+      stop() {
+        if (this.active && this.mediaReady && this.net.connected) {
+          this.net.sendSignal({ type: 'bye' });
+        }
+        this._session++;
+        this.active = false;
+        this.mediaReady = false;
+        this.peerReady = false;
+        this._gotOffer = false;
+        this._clearTimers();
+        this._closePeer();
+        if (this.localStream) this.localStream.getTracks().forEach(t => t.stop());
+        this.localStream = null;
+        this.$local.srcObject = null;
+        this.$local.style.display = 'none';
+        this.earlySignals = [];
+        this.pendingCandidates = [];
+        this._setStatus('');
+        this.$retry.style.display = 'none';
+        this.$wrap.style.display = 'none';
+      }
+
+      retry() {
+        clearTimeout(this._retryTimer);
+        this.autoRetries = 0;
+        this.$retry.style.display = 'none';
+        this._setStatus('Reconnecting video…');
+        this._reconnect();
+      }
+
+      // ── Local camera ─────────────────────────────────────────────
+      async _getLocalMedia() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          this.ui.toast('📹 Camera needs HTTPS or localhost — playing without your video', 4200);
+          return null;
+        }
+        try {
+          return await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 320 }, height: { ideal: 240 },
+              frameRate: { ideal: 24, max: 30 }, facingMode: 'user'
+            },
+            audio: false
+          });
+        } catch (err) {
+          const n = err && err.name;
+          const why = (n === 'NotAllowedError' || n === 'SecurityError') ? 'Camera permission denied'
+            : (n === 'NotFoundError' || n === 'OverconstrainedError') ? 'No camera found'
+              : (n === 'NotReadableError') ? 'Camera is in use by another app'
+                : 'Camera unavailable';
+          // Not fatal: we can still receive the opponent's video
+          this.ui.toast(`📹 ${why} — you can still see your opponent`, 4200);
+          return null;
+        }
+      }
+
+      // ── Signalling ───────────────────────────────────────────────
+      async handleSignal(msg) {
+        if (!msg || !msg.type) return;
+
+        // Not ready yet (permission prompt open, or the game hasn't started here) → queue
+        if (!this.active || !this.mediaReady) {
+          if (msg.type !== 'bye' && this.earlySignals.length < 100) {
+            this.earlySignals.push({ msg, at: Date.now() });
+          }
+          return;
+        }
+
+        try {
+          switch (msg.type) {
+            case 'ready': {                       // guest → host
+              if (!this.isHost) break;
+              this.peerReady = true;
+              const st = this.pc ? (this.pc.connectionState || this.pc.iceConnectionState) : null;
+              const healthy = st === 'connected' || st === 'completed';
+              const dead = !this.pc || st === 'failed' || st === 'closed' || st === 'disconnected';
+              const stalled = !healthy && Date.now() - this.offerSentAt > 8000;
+              if (msg.retry || dead || stalled) await this._startAsOfferer();
+              break;
+            }
+            case 'offer':                         // host → guest
+              if (this.isHost) break;
+              this._gotOffer = true;
+              clearInterval(this._readyTimer);
+              await this._answer(msg);
+              break;
+
+            case 'answer':                        // guest → host
+              if (this.isHost && this.pc && msg.gen === this.gen &&
+                this.pc.signalingState === 'have-local-offer') {
+                await this.pc.setRemoteDescription(msg.sdp);
+                await this._flushCandidates(this.pc);
+              }
+              break;
+
+            case 'candidate':
+              if (msg.gen === this.gen && this.pc && this.pc.remoteDescription) {
+                try { await this.pc.addIceCandidate(msg.candidate); } catch (e) { /* stale */ }
+              } else if (msg.gen >= this.gen && this.pendingCandidates.length < 200) {
+                this.pendingCandidates.push(msg);   // arrived before its offer/answer
+              }
+              break;
+
+            case 'bye':
+              this.peerReady = false;
+              this._gotOffer = false;
+              clearInterval(this._readyTimer);
+              clearTimeout(this._retryTimer);
+              this._closePeer();
+              this._setStatus('Opponent left video');
+              break;
+          }
+        } catch (err) {
+          console.warn('Video signalling error:', err);
+          this._fail('Video connection error');
+        }
+      }
+
+      _announceReady(isRetry) {
+        clearInterval(this._readyTimer);
+        this._gotOffer = false;
+        let tries = 0;
+        const send = () => {
+          if (!this.active || this._gotOffer) { clearInterval(this._readyTimer); return; }
+          if (++tries > 10) {
+            clearInterval(this._readyTimer);
+            this._fail('Opponent video not responding');
+            return;
+          }
+          this.net.sendSignal({ type: 'ready', retry: !!isRetry && tries === 1 });
+        };
+        send();
+        this._readyTimer = setInterval(send, 3000);   // keeps trying in case the host wasn't listening yet
+      }
+
+      // ── Peer connection ──────────────────────────────────────────
+      _createPeer() {
+        this._closePeer();
+        const gen = this.gen;
+        const pc = new RTCPeerConnection(RTC_CONFIG);
+        this.pc = pc;
+        this._gotRemoteTrack = false;
+
+        pc.ontrack = e => {
+          this._gotRemoteTrack = true;
+          this.$remote.srcObject = (e.streams && e.streams[0]) || new MediaStream([e.track]);
+          this.$remote.play().catch(() => { });
+        };
+        pc.onicecandidate = e => {
+          if (e.candidate) {
+            this.net.sendSignal({ type: 'candidate', gen, candidate: e.candidate.toJSON() });
+          }
+        };
+        const onState = () => this._onPeerState(pc);
+        pc.onconnectionstatechange = onState;
+        pc.oniceconnectionstatechange = onState;   // fallback for older Safari
+        return pc;
+      }
+
+      async _startAsOfferer() {
+        if (!this.active || !this.mediaReady) return;
+        const sid = this._session;
+        try {
+          this.gen++;
+          const pc = this._createPeer();
+          if (this.localStream) {
+            this.localStream.getVideoTracks().forEach(t => pc.addTrack(t, this.localStream));
+          } else {
+            pc.addTransceiver('video', { direction: 'recvonly' });   // no camera → still receive
+          }
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          if (sid !== this._session || this.pc !== pc) return;
+          this.offerSentAt = Date.now();
+          this.net.sendSignal({
+            type: 'offer', gen: this.gen,
+            sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp }
+          });
+          this._setStatus('Connecting video…');
+          this._armTimeout(pc);
+        } catch (err) {
+          console.warn('Video offer failed:', err);
+          this._fail('Could not start video');
+        }
+      }
+
+      async _answer(msg) {
+        const sid = this._session;
+        try {
+          this.gen = msg.gen;
+          const pc = this._createPeer();
+          await pc.setRemoteDescription(msg.sdp);
+          if (this.localStream) {
+            this.localStream.getVideoTracks().forEach(t => pc.addTrack(t, this.localStream));
+          }
+          await this._flushCandidates(pc);
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          if (sid !== this._session || this.pc !== pc) return;
+          this.net.sendSignal({
+            type: 'answer', gen: this.gen,
+            sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp }
+          });
+          this._setStatus('Connecting video…');
+          this._armTimeout(pc);
+        } catch (err) {
+          console.warn('Video answer failed:', err);
+          this._fail('Could not start video');
+        }
+      }
+
+      async _flushCandidates(pc) {
+        const list = this.pendingCandidates.splice(0);
+        for (const c of list) {
+          if (c.gen > this.gen) { this.pendingCandidates.push(c); continue; }   // belongs to a later negotiation
+          if (c.gen !== this.gen) continue;                                      // stale → drop
+          try { await pc.addIceCandidate(c.candidate); } catch (e) { /* ignore */ }
+        }
+      }
+
+      _armTimeout(pc) {
+        clearTimeout(this._connTimer);
+        this._connTimer = setTimeout(() => {
+          if (pc !== this.pc) return;
+          const st = pc.connectionState || pc.iceConnectionState;
+          if (st !== 'connected' && st !== 'completed') this._fail('Video connection timed out');
+        }, 15000);
+      }
+
+      _onPeerState(pc) {
+        if (pc !== this.pc) return;
+        const st = pc.connectionState || pc.iceConnectionState;
+        if (st === 'connected' || st === 'completed') {
+          clearTimeout(this._connTimer);
+          this.autoRetries = 0;
+          this.$retry.style.display = 'none';
+          if (this._gotRemoteTrack) this._setStatus('');
+          // Connected but nothing arrives → the opponent has no camera
+          setTimeout(() => {
+            if (pc === this.pc && !this._gotRemoteTrack) this._setStatus('Opponent camera is off');
+          }, 2000);
+        } else if (st === 'disconnected') {
+          this._setStatus('Video reconnecting…');      // often recovers on its own
+        } else if (st === 'failed') {
+          this._fail('Video connection failed');
+        }
+      }
+
+      // One silent automatic retry, then offer a manual "Retry" button.
+      _fail(message) {
+        if (!this.active) return;
+        this._clearTimers();
+        this._closePeer();
+        if (this.autoRetries < 1) {
+          this.autoRetries++;
+          this._setStatus('Reconnecting video…');
+          const sid = this._session;
+          this._retryTimer = setTimeout(() => { if (sid === this._session) this._reconnect(); }, 1500);
+          return;
+        }
+        this._setStatus(message);
+        this.$retry.style.display = 'inline-block';
+        this.ui.toast(`📹 ${message} — the game continues`, 3500);
+      }
+
+      _reconnect() {
+        if (!this.active || !this.mediaReady) return;
+        if (this.isHost) {
+          if (this.peerReady) this._startAsOfferer();
+          else this._setStatus('Waiting for opponent video…');
+        } else {
+          this._announceReady(true);
+        }
+      }
+
+      _closePeer() {
+        clearTimeout(this._connTimer);
+        if (this.pc) {
+          const pc = this.pc;
+          this.pc = null;
+          pc.ontrack = pc.onicecandidate = pc.onconnectionstatechange = pc.oniceconnectionstatechange = null;
+          try { pc.close(); } catch (e) { }
+        }
+        this.$remote.srcObject = null;
+        this._gotRemoteTrack = false;
+      }
+
+      _clearTimers() {
+        clearInterval(this._readyTimer);
+        clearTimeout(this._connTimer);
+        clearTimeout(this._retryTimer);
+      }
+
+      _setStatus(text) {
+        this.$status.textContent = text || '';
+        this.$status.style.display = text ? 'flex' : 'none';
+      }
+    }
+
+    // ============================================================
+    // AI MANAGER  — Hard difficulty, reliable serving
+    // ============================================================
+    class AIManager {
+      constructor() {
+        this.offset = 0;          // lateral imperfection
+        this.lastServe = 0;
+        this._serveReady = false;    // AI has moved to ball, ready to serve
+        this._refreshOffset();
+      }
+
+      _refreshOffset() {
+        // Small imperfection so it's beatable — changes every ~1s
+        this.offset = rnd(-0.06, 0.06);
+        setTimeout(() => this._refreshOffset(), rnd(800, 1600));
+      }
+
+      update(dt, ballPos, aiPaddlePos, gameState) {
+        const { tableLength: L, tableHeight: H, tableWidth: W } = GAME_CONFIG;
+        const AI_SPEED = 5.5;   // fast — hard difficulty
+        const side = -1;         // AI is always player 2 (negative Z)
+
+        const homeZ = side * (L / 2 - 0.22);
+
+        if (gameState === 'SERVING') {
+          // AI serving: glide toward ball (which is locked at homeZ)
+          const tx = clamp(ballPos.x + this.offset, -W / 2 + 0.1, W / 2 - 0.1);
+          const tz = homeZ;
+          this._moveToward(aiPaddlePos, tx, H + 0.13, tz, dt, AI_SPEED);
+          // Mark ready once close enough
+          const close = Math.abs(aiPaddlePos.x - tx) < 0.04 && Math.abs(aiPaddlePos.z - tz) < 0.04;
+          if (close) this._serveReady = true;
+          return;
+        }
+
+        if (gameState !== 'PLAYING') {
+          this._moveToward(aiPaddlePos, 0, H + 0.13, homeZ, dt, AI_SPEED * 0.5);
+          return;
+        }
+
+        // --- PLAYING ---
+        // Predict where ball will cross AI's end (z < 0)
+        let tx, tz;
+        if (ballPos.z < 0 && this._predictX !== undefined) {
+          // Ball coming toward AI — intercept predicted X
+          tx = clamp(this._predictX + this.offset, -W / 2 + 0.1, W / 2 - 0.1);
+          tz = clamp(ballPos.z + 0.18, homeZ, -0.12);
+        } else {
+          // Ball on player's side — hold ready position near home
+          tx = clamp(ballPos.x * 0.4 + this.offset, -W / 2 + 0.1, W / 2 - 0.1);
+          tz = homeZ;
+        }
+
+        this._moveToward(aiPaddlePos, tx, H + 0.13, tz, dt, AI_SPEED);
+      }
+
+      // Called each frame from GameManager with ball velocity for prediction
+      predict(ballPos, ballVel) {
+        // Simple linear prediction: where will ball be when z crosses -0.25?
+        if (ballVel.z >= 0) { this._predictX = undefined; return; }
+        const tToAI = (ballPos.z - (-GAME_CONFIG.tableLength / 2 + 0.22)) / (-ballVel.z || 0.001);
+        this._predictX = ballPos.x + ballVel.x * tToAI;
+        this._predictX = clamp(this._predictX, -GAME_CONFIG.tableWidth / 2 + 0.05, GAME_CONFIG.tableWidth / 2 - 0.05);
+      }
+
+      _moveToward(pos, tx, ty, tz, dt, speed) {
+        const dx = tx - pos.x, dy = ty - pos.y, dz = tz - pos.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist > 0.005) {
+          const step = Math.min(speed * dt, dist);
+          pos.x += (dx / dist) * step;
+          pos.y += (dy / dist) * step;
+          pos.z += (dz / dist) * step;
+        }
+      }
+
+      // Returns true when AI should trigger a serve
+      shouldServe() {
+        if (!this._serveReady) return false;
+        const now = Date.now();
+        if (now - this.lastServe < 1500) return false;
+        this.lastServe = now;
+        this._serveReady = false;
+        return true;
+      }
+    }
+
+    // ============================================================
+    // UI MANAGER
+    // ============================================================
+    class UIManager {
+      constructor() {
+        this.$loading = document.getElementById('loadingScreen');
+        this.$menu = document.getElementById('menuScreen');
+        this.$lobby = document.getElementById('lobbyScreen');
+        this.$hud = document.getElementById('hud');
+        this.$pause = document.getElementById('pauseScreen');
+        this.$gameOver = document.getElementById('gameOverScreen');
+        this.$toasts = document.getElementById('toastContainer');
+        this.$pointFlash = document.getElementById('pointFlash');
+        this.$p1Score = document.getElementById('p1Score');
+        this.$p2Score = document.getElementById('p2Score');
+        this.$p1Name = document.getElementById('p1Name');
+        this.$p2Name = document.getElementById('p2Name');
+        this.$roomCodeHUD = document.getElementById('roomCodeHUD');
+        this.$roomCodeDisplay = document.getElementById('roomCodeDisplay');
+        this.$lobbyStatus = document.getElementById('lobbyStatus');
+        this.$lobbyTitle = document.getElementById('lobbyTitle');
+        this.$cameraBtn = document.getElementById('cameraBtn');
+        this.$handCamCanvas = document.getElementById('handCamCanvas');
+      }
+
+      showLoading() { this.$loading.style.display = 'flex'; }
+      hideLoading() { this.$loading.style.display = 'none'; }
+
+      showMenu() {
+        this._hideAll();
+        this.$menu.style.display = 'block';
+      }
+
+      showLobby(code, isHost) {
+        this._hideAll();
+        this.$lobby.style.display = 'block';
+        this.$roomCodeDisplay.textContent = code;
+        this.$lobbyTitle.textContent = isHost ? 'Waiting for opponent…' : 'Joining room…';
+        this.$lobbyStatus.textContent = isHost ? 'Share this code with your opponent' : `Room: ${code}`;
+      }
+
+      lobbyOpponentJoined() {
+        this.$lobbyTitle.textContent = 'Opponent joined! Starting…';
+        this.$lobbyStatus.textContent = 'Get ready!';
+      }
+
+      showHUD(roomCode) {
+        this._hideAll();
+        this.$hud.style.display = 'block';
+        this.$roomCodeHUD.textContent = roomCode ? `ROOM: ${roomCode}` : '';
+        this.$cameraBtn.style.display = 'block';
+      }
+
+      showPause() { this.$pause.style.display = 'block'; }
+      hidePause() { this.$pause.style.display = 'none'; }
+
+      showGameOver(winner, p1Score, p2Score) {
+        this.$gameOver.style.display = 'block';
+        document.getElementById('winnerText').textContent = `${winner} wins! 🏆`;
+        document.getElementById('finalScore').textContent = `${p1Score} – ${p2Score}`;
+      }
+
+      updateScore(p1, p2) {
+        this.$p1Score.textContent = p1;
+        this.$p2Score.textContent = p2;
+        // Animate the scoring side
+        this._pulseScore(p1 > (this._lastP1 || 0) ? this.$p1Score : null);
+        this._pulseScore(p2 > (this._lastP2 || 0) ? this.$p2Score : null);
+        this._lastP1 = p1; this._lastP2 = p2;
+      }
+
+      _pulseScore(el) {
+        if (!el) return;
+        el.style.transform = 'scale(1.45)';
+        el.style.transition = 'transform 0.12s ease';
+        setTimeout(() => { el.style.transform = 'scale(1)'; el.style.transition = 'transform 0.35s ease'; }, 130);
+      }
+
+      setServeIndicator(server) {
+        const d1 = document.getElementById('p1ServeDot');
+        const d2 = document.getElementById('p2ServeDot');
+        if (d1) d1.classList.toggle('active', server === 1);
+        if (d2) d2.classList.toggle('active', server === 2);
+      }
+
+      setPlayerNames(p1, p2) {
+        this.$p1Name.textContent = p1;
+        this.$p2Name.textContent = p2;
+      }
+
+      toast(msg, duration = 2700) {
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.textContent = msg;
+        this.$toasts.appendChild(el);
+        setTimeout(() => el.remove(), duration);
+      }
+
+      flashPoint(text) {
+        this.$pointFlash.textContent = text;
+        this.$pointFlash.classList.add('show');
+        setTimeout(() => this.$pointFlash.classList.remove('show'), 1800);
+      }
+
+      _hideAll() {
+        this.$loading.style.display = 'none';
+        this.$menu.style.display = 'none';
+        this.$lobby.style.display = 'none';
+        this.$hud.style.display = 'none';
+        this.$pause.style.display = 'none';
+        this.$gameOver.style.display = 'none';
+      }
+    }
+
+    // ============================================================
+    // GAME MANAGER  (state machine + main loop)
+    // ============================================================
+    class GameManager {
+      constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ui = new UIManager();
+        this.sm = new SceneManager(this.canvas);
+        this.physics = new PhysicsEngine(this.sm);
+        this.input = new InputManager(this.canvas);
+        this.network = new NetworkManager();
+        this.ai = new AIManager();
+        this.video = new VideoChat(this.network, this.ui);
+        window.addEventListener('pagehide', () => this.video.stop());
+
+        // Game state
+        this.state = 'MENU'; // MENU | LOBBY | SERVING | PLAYING | POINT_SCORED | GAME_OVER
+        this.p1Score = 0;
+        this.p2Score = 0;
+        this.server = 1; // who serves next
+        this.pointsThisServer = 0;
+        this.localPlayer = 1; // which player we control
+        this.vsAI = false;
+        this.paused = false;
+        this.roomCode = null;
+        this._resumeToken = 0;  // incremented on each point to cancel stale timeouts
+
+        // Paddle world positions (controlled by game)
+        this.p1Pos = { x: 0, y: GAME_CONFIG.tableHeight + 0.12, z: GAME_CONFIG.tableLength / 2 - 0.25 };
+        this.p2Pos = { x: 0, y: GAME_CONFIG.tableHeight + 0.12, z: -GAME_CONFIG.tableLength / 2 + 0.25 };
+
+        // Opponent paddle (interpolated)
+        this.remoteP2Pos = { ...this.p2Pos };
+        this.remoteBallPos = null;
+
+        this._lastTime = performance.now();
+        this._networkTimer = 0;
+        this._serveTimer = 0;
+
+        this._bindUI();
+        this._init();
+      }
+
+      _bindUI() {
+        // Menu buttons
+        document.getElementById('btnCreateRoom').addEventListener('click', () => this._createRoom());
+        document.getElementById('btnJoinRoom').addEventListener('click', () => this._joinRoom());
+        document.getElementById('btnCPU').addEventListener('click', () => this._startCPU());
+        document.getElementById('btnInstructions').addEventListener('click', () => {
+          document.getElementById('instructionsPanel').classList.toggle('open');
+        });
+
+        // Lobby
+        document.getElementById('btnLeaveLobby').addEventListener('click', () => {
+          this.network.disconnect().catch(() => { });
+          this.state = 'MENU';
+          this.ui.showMenu();
+        });
+
+        // Pause
+        document.getElementById('btnResume').addEventListener('click', () => this._resume());
+        document.getElementById('btnQuit').addEventListener('click', () => this._quitToMenu());
+
+        // Game over
+        document.getElementById('btnPlayAgain').addEventListener('click', () => this._playAgain());
+        document.getElementById('btnGoMenu').addEventListener('click', () => this._quitToMenu());
+
+        // Camera
+        document.getElementById('cameraBtn').addEventListener('click', () => this._enableCamera());
+
+        // Esc = pause
+        window.addEventListener('keydown', e => {
+          if (e.code === 'Escape' && (this.state === 'PLAYING' || this.state === 'SERVING')) {
+            this.paused ? this._resume() : this._pause();
+          }
+        });
+
+        // Enter in join input
+        document.getElementById('joinCodeInput').addEventListener('keydown', e => {
+          if (e.code === 'Enter') this._joinRoom();
+        });
+      }
+
+      _init() {
+        this.ui.hideLoading();
+        this.ui.showMenu();
+        this._loop();
+      }
+
+      // ── Lobby / Room management ──────────────────────────────────
+      async _createRoom() {
+        this.ui.toast('Creating room…');
+        const result = await this.network.createRoom();
+        if (!result.ok) {
+          this.ui.toast(`⚠️ ${result.error || 'Failed'}. Check Supabase config.`);
+          return;
+        }
+        this.localPlayer = 1;
+        this.roomCode = result.code;
+        this.state = 'LOBBY';
+        this.ui.showLobby(result.code, true);
+
+        this.network.onGameEvent = payload => {
+          if (payload.type === 'ready' && this.state === 'LOBBY') {
+            this.ui.lobbyOpponentJoined();
+            setTimeout(() => this._startGame(), 1200);
+          }
+        };
+        this._setupNetworkCallbacks();
+      }
+
+      async _joinRoom() {
+        const code = document.getElementById('joinCodeInput').value.trim();
+        if (code.length < 4) { this.ui.toast('Enter a 4-digit room code'); return; }
+
+        this.ui.toast(`Joining room ${code}…`);
+        const result = await this.network.joinRoom(code);
+        if (!result.ok) {
+          this.ui.toast(`⚠️ ${result.error || 'Failed'}`);
+          return;
+        }
+        this.localPlayer = 2;
+        this.roomCode = code;
+        this.state = 'LOBBY';
+        this.ui.showLobby(code, false);
+        this._setupNetworkCallbacks();
+
+        // Guest starts game after small delay
+        setTimeout(() => this._startGame(), 1500);
+      }
+
+      _setupNetworkCallbacks() {
+        this.network.onSignal = msg => this.video.handleSignal(msg);
+
+        this.network.onOpponentPaddle = payload => {
+          if (this.localPlayer === 1) {
+            // Remote is P2
+            this.remoteP2Pos.x = payload.x;
+            this.remoteP2Pos.y = payload.y;
+            this.remoteP2Pos.z = payload.z;
+          } else {
+            // Remote is P1 — we're P2 (flip perspective)
+            this.remoteP2Pos.x = payload.x;
+            this.remoteP2Pos.y = payload.y;
+            this.remoteP2Pos.z = payload.z;
+          }
+        };
+
+        this.network.onBallSync = payload => {
+          if (!this.network.isHost) {
+            this.remoteBallPos = {
+              x: payload.x, y: payload.y, z: payload.z,
+              vx: payload.vx, vy: payload.vy, vz: payload.vz
+            };
+          }
+        };
+
+        this.network.onScoreUpdate = payload => {
+          this.p1Score = payload.p1Score;
+          this.p2Score = payload.p2Score;
+          this.server = payload.server;
+          this.ui.updateScore(this.p1Score, this.p2Score);
+        };
+      }
+
+      _startCPU() {
+        this.vsAI = true;
+        this.localPlayer = 1;
+        this.roomCode = null;
+        this._startGame();
+      }
+
+      _startGame() {
+        this.p1Score = 0;
+        this.p2Score = 0;
+        this.server = 1;
+        this.pointsThisServer = 0;
+        this.state = 'SERVING';
+        this.paused = false;
+        this._resumeToken = 0;
+        this.physics.reset(this.server);
+        this.sm.clearTrail();
+        this.sm.setCameraForPlayer(this.localPlayer);
+
+        this.ui.showHUD(this.roomCode);
+        this.ui.updateScore(0, 0);
+        this.ui.setServeIndicator(1);
+
+        const p1Name = this.vsAI ? 'You' : (this.localPlayer === 1 ? 'You' : 'Opponent');
+        const p2Name = this.vsAI ? 'CPU' : (this.localPlayer === 2 ? 'You' : 'Opponent');
+        this.ui.setPlayerNames(p1Name, p2Name);
+        this.ui.toast('🏓 Game Start!');
+
+        // Online match → ask for the camera and open the opponent video window
+        if (!this.vsAI && this.network.connected) {
+          this.video.start(this.network.isHost).catch(err => console.warn('Video chat failed to start:', err));
+        }
+        this._serveTimer = 0;
+      }
+
+      _pause() {
+        this.paused = true;
+        this.ui.showPause();
+      }
+
+      _resume() {
+        this.paused = false;
+        this.ui.hidePause();
+      }
+
+      _quitToMenu() {
+        this.video.stop();
+        this.paused = false;
+        this.vsAI = false;
+        this.network.disconnect().catch(() => { });
+        this.state = 'MENU';
+        this.ui.showMenu();
+      }
+
+      _playAgain() {
+        document.getElementById('gameOverScreen').style.display = 'none';
+        if (this.vsAI) {
+          this._startCPU();
+        } else if (this.network.connected) {
+          this.network.sendGameEvent('play_again');
+          this._startGame();
+        } else {
+          this._quitToMenu();
+        }
+      }
+
+      async _enableCamera() {
+        document.getElementById('cameraBtn').textContent = '⏳ Enabling…';
+        const cvs = document.getElementById('handCamCanvas');
+        cvs.width = 180;
+        cvs.height = 135;
+
+        await this.input.enableHandTracking(
+          () => {
+            document.getElementById('cameraBtn').textContent = '📷 Camera ON';
+            this.ui.toast('🖐 Hand tracking enabled!');
+          },
+          (err) => {
+            document.getElementById('cameraBtn').textContent = '📷 Enable Camera';
+            this.ui.toast('❌ Camera failed: ' + (err?.message || 'Permission denied'));
+          }
+        );
+      }
+
+      // ── Serve logic ──────────────────────────────────────────────
+      _tryServe() {
+        const isLocalServer = (this.server === this.localPlayer) ||
+          (this.vsAI && this.server === 1);
+        if (!isLocalServer) return;
+
+        // Keyboard: Space
+        if (this.input.consumeServe()) {
+          this.physics.serve(this.server);
+          this.state = 'PLAYING';
+          this.network.sendGameEvent('serve');
+          return;
+        }
+
+        // Hand pinch
+        if (this.input.handData?.pinch) {
+          this.physics.serve(this.server);
+          this.state = 'PLAYING';
+        }
+      }
+
+      // ── Determine who scores when out-of-bounds ──────────────────
+      _handlePhysicsEvent(ev) {
+        if (!ev) return;
+        if (ev === 'p1_scores') {
+          this._awardPoint(1);
+        } else if (ev === 'p2_scores') {
+          this._awardPoint(2);
+        } else if (ev === 'net') {
+          this.ui.toast('🥅 Net!');
+        }
+      }
+
+      _awardPoint(scorer) {
+        if (this.state !== 'PLAYING') return;
+        this.state = 'POINT_SCORED';
+
+        if (scorer === 1) {
+          this.p1Score++;
+          this.ui.flashPoint('Point — You! 🔴');
+        } else {
+          this.p2Score++;
+          this.ui.flashPoint(this.vsAI ? 'CPU scores! 🔵' : 'Point — Opponent! 🔵');
+        }
+
+        this.ui.updateScore(this.p1Score, this.p2Score);
+
+        // Serve rotation: every 2 points switch server (every 1 in deuce)
+        this.pointsThisServer++;
+        const inDeuce = this.p1Score >= GAME_CONFIG.pointsToWin - 1 &&
+          this.p2Score >= GAME_CONFIG.pointsToWin - 1;
+        const rotateEvery = inDeuce ? 1 : 2;
+        if (this.pointsThisServer >= rotateEvery) {
+          this.server = this.server === 1 ? 2 : 1;
+          this.pointsThisServer = 0;
+        }
+
+        if (this.network.isHost) {
+          this.network.sendScoreUpdate({
+            p1Score: this.p1Score, p2Score: this.p2Score,
+            server: this.server, gameState: this.state
+          });
+        }
+
+        if (this._checkGameOver()) return;
+
+        // Use a timestamp guard instead of state-string check to prevent stale callbacks
+        const resumeToken = ++this._resumeToken;
+        setTimeout(() => {
+          if (this._resumeToken !== resumeToken) return; // superseded
+          this.physics.reset(this.server);
+          this.sm.clearTrail();
+          this._serveTimer = 0;
+          this.state = 'SERVING';
+          this.ui.setServeIndicator(this.server);
+          this.ui.toast(this.server === this.localPlayer ? '🏓 Your serve!' : '🏓 Opponent serves');
+        }, 1800);
+      }
+
+      _checkGameOver() {
+        const { p1Score: p1, p2Score: p2 } = this;
+        const win = GAME_CONFIG.pointsToWin;
+        const maxScore = Math.max(p1, p2);
+        if (maxScore >= win && Math.abs(p1 - p2) >= 2) {
+          this.state = 'GAME_OVER';
+          const winner = p1 > p2
+            ? (this.localPlayer === 1 ? 'You' : 'Player 1')
+            : (this.localPlayer === 2 ? 'You' : 'Player 2');
+          this.ui.showGameOver(winner, p1, p2);
+          return true;
+        }
+        return false;
+      }
+
+      // ── Main Loop ────────────────────────────────────────────────
+      _loop() {
+        requestAnimationFrame(() => this._loop());
+
+        const now = performance.now();
+        const dt = Math.min((now - this._lastTime) / 1000, 0.05);
+        this._lastTime = now;
+
+        if (this.paused || this.state === 'MENU' || this.state === 'LOBBY') {
+          this.sm.render();
+          return;
+        }
+
+        this._update(dt, now);
+        this.sm.render();
+      }
+
+      _update(dt, now) {
+        const { tableWidth: W, tableLength: L, tableHeight: H } = GAME_CONFIG;
+        const localMesh = this.localPlayer === 1 ? this.sm.paddle1 : this.sm.paddle2;
+        const remMesh = this.localPlayer === 1 ? this.sm.paddle2 : this.sm.paddle1;
+
+        // ── Update local paddle ────────────────────────────────────
+        const localPos = this.localPlayer === 1 ? this.p1Pos : this.p2Pos;
+        const side = this.localPlayer === 1 ? 1 : -1;
+
+        if (this.input.handData) {
+          // Hand tracking: mirror Z for player 2
+          localPos.x = this.input.handData.x;
+          localPos.y = this.input.handData.y;
+          localPos.z = this.input.handData.z * side;
+        } else {
+          // Keyboard delta
+          const delta = this.input.getPaddleInput(this.localPlayer, dt);
+          localPos.x = clamp(localPos.x + delta.dx, -W / 2 + 0.1, W / 2 - 0.1);
+          localPos.z = clamp(localPos.z + delta.dz,
+            side > 0 ? 0.05 : -(L / 2 - 0.05),
+            side > 0 ? (L / 2 - 0.05) : -0.05
+          );
+
+          // Mouse control: map normalized mouse pos to paddle range
+          const mn = this.input.getMouseNorm();
+          if (mn.x !== 0 || mn.y !== 0) {
+            const targetX = lerp(-W / 2 + 0.1, W / 2 - 0.1, mn.x);
+            const targetZ = side > 0
+              ? lerp(0.1, L / 2 - 0.05, mn.y)
+              : lerp(-(L / 2 - 0.05), -0.1, mn.y);
+            localPos.x = lerp(localPos.x, targetX, 0.15);
+            localPos.z = lerp(localPos.z, targetZ, 0.15);
+          }
+        }
+        localPos.y = H + 0.12;
+
+        // Update mesh
+        localMesh.position.set(localPos.x, localPos.y, localPos.z);
+
+        // ── Update remote / AI paddle ────────────────────────────────
+        const remPos = this.localPlayer === 1 ? this.p2Pos : this.p1Pos;
+
+        if (this.vsAI) {
+          this.ai.update(dt, this.physics.ballPos, remPos, this.state);
+        } else {
+          // Interpolate remote paddle
+          remPos.x = lerp(remPos.x, this.remoteP2Pos.x, 0.35);
+          remPos.y = lerp(remPos.y, this.remoteP2Pos.y, 0.35);
+          remPos.z = lerp(remPos.z, this.remoteP2Pos.z, 0.35);
+        }
+        remMesh.position.set(remPos.x, remPos.y, remPos.z);
+
+        // ── Paddle tilt (vertical paddles — tilt around Z for lateral lean) ──
+        // Estimate lateral velocity from position delta
+        const prevLx = this._prevLocalX ?? localPos.x;
+        const lateralV = (localPos.x - prevLx) / Math.max(dt, 0.001);
+        this._prevLocalX = localPos.x;
+        // base forward lean (rotation.x), lateral lean (rotation.z)
+        const baseLean = this.localPlayer === 1 ? 0.12 : -0.12;
+        localMesh.rotation.x = lerp(localMesh.rotation.x, baseLean, 0.15);
+        localMesh.rotation.z = lerp(localMesh.rotation.z, clamp(-lateralV * 0.08, -0.35, 0.35), 0.2);
+
+        // ── Serve state ─────────────────────────────────────────────
+        if (this.state === 'SERVING') {
+          this._serveTimer += dt;
+          // Keep ball locked above the serving player's paddle
+          const servPos = this.server === 1 ? this.p1Pos : this.p2Pos;
+          this.physics.ballPos.x = servPos.x;
+          this.physics.ballPos.z = servPos.z;
+          this.physics.ballPos.y = H + 0.22;
+          this.physics.ballVel = { x: 0, y: 0, z: 0 };
+          this.sm.ball.position.set(this.physics.ballPos.x, this.physics.ballPos.y, this.physics.ballPos.z);
+
+          // AI serve: wait 1.5s then auto-serve (no proximity check needed — ball is already there)
+          if (this.vsAI && this.server === 2 && this._serveTimer > 1.5) {
+            if (this.ai.shouldServe()) {
+              this.physics.serve(2);
+              this.state = 'PLAYING';
+            }
+          }
+
+          this._tryServe();
+        }
+
+        // ── Playing ─────────────────────────────────────────────────
+        if (this.state === 'PLAYING') {
+          // Feed ball prediction to AI every frame
+          if (this.vsAI) this.ai.predict(this.physics.ballPos, this.physics.ballVel);
+
+          const shouldSimulate = this.network.isHost || this.vsAI || !this.network.connected;
+
+          if (shouldSimulate) {
+            const ev = this.physics.update(dt, this.p1Pos, this.p2Pos);
+            this._handlePhysicsEvent(ev);
+          } else if (this.remoteBallPos) {
+            // Guest: interpolate ball from host
+            const rp = this.remoteBallPos;
+            this.physics.ballPos.x = lerp(this.physics.ballPos.x, rp.x, 0.3);
+            this.physics.ballPos.y = lerp(this.physics.ballPos.y, rp.y, 0.3);
+            this.physics.ballPos.z = lerp(this.physics.ballPos.z, rp.z, 0.3);
+            this.sm.ball.position.set(this.physics.ballPos.x, this.physics.ballPos.y, this.physics.ballPos.z);
+          }
+        }
+
+        // ── Network sends ────────────────────────────────────────────
+        if (this.network.connected) {
+          this._networkTimer += dt;
+          if (this._networkTimer >= 1 / GAME_CONFIG.networkFps) {
+            this._networkTimer = 0;
+            this.network.sendPaddleMove(localPos);
+            if (this.network.isHost && this.state === 'PLAYING') {
+              this.network.sendBallSync(this.physics.ballPos, this.physics.ballVel);
+            }
+          }
+        }
+
+        // ── Ball rotation (visual) ───────────────────────────────────
+        const bv = this.physics.ballVel;
+        this.sm.ball.rotation.x += bv.z * dt * 4;
+        this.sm.ball.rotation.z -= bv.x * dt * 4;
+
+        // ── Ball motion trail ────────────────────────────────────────
+        const speed = Math.sqrt(bv.x * bv.x + bv.y * bv.y + bv.z * bv.z);
+        this.sm.updateTrail(this.physics.ballPos, speed);
+      }
+    }
+
+    // ============================================================
+    // MAIN — init on DOMContentLoaded
+    // ============================================================
+    let game;
+    document.addEventListener('DOMContentLoaded', () => {
+      // Give CDN scripts a moment to fully evaluate
+      setTimeout(() => {
+        // Hard check: THREE must exist before we do anything
+        if (typeof THREE === 'undefined') {
+          document.getElementById('loadingScreen').innerHTML = `
+        <h2 style="color:#ff4466;">⚠ Three.js failed to load</h2>
+        <p style="color:#aaa;margin-top:10px;">Could not load Three.js from CDN.<br>
+        Check your internet connection and try refreshing.<br>
+        <small style="color:#666;">Open DevTools (F12 → Console) for details.</small></p>
+        <button onclick="location.reload()" style="margin-top:18px;padding:10px 24px;border:2px solid #00ff88;border-radius:8px;color:#00ff88;background:transparent;cursor:pointer;font-size:1rem;">
+          🔄 Retry
+        </button>`;
+          return;
+        }
+        try {
+          game = new GameManager();
+        } catch (err) {
+          console.error('Game init failed:', err);
+          document.getElementById('loadingScreen').innerHTML = `
+        <h2 style="color:#ff4466;">⚠ Init Error</h2>
+        <p style="color:#aaa;margin-top:10px;">${err.message}</p>
+        <pre style="color:#666;font-size:0.75rem;margin-top:12px;text-align:left;max-width:500px;overflow:auto;">${err.stack || ''}</pre>
+        <button onclick="location.reload()" style="margin-top:18px;padding:10px 24px;border:2px solid #00ff88;border-radius:8px;color:#00ff88;background:transparent;cursor:pointer;font-size:1rem;">
+          🔄 Retry
+        </button>`;
+        }
+      }, 300);
+    });
+  </script>
+</body>
+
+</html>
