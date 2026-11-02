@@ -2,10 +2,29 @@
 <html lang="en">
 
 <head>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "3D Multiplayer Table Tennis Game",
+  "applicationCategory": "GameApplication",
+  "operatingSystem": "Web",
+  "url": "https://rajacharyaroyal.github.io/3d-table-tennis/",
+  "description": "A browser-based 3D table tennis game featuring multiplayer gameplay and webcam-based hand tracking."
+}
+</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🏓 Table Tennis 3D</title>
-
+  <meta name="description"
+    content="Play 3D table tennis online with multiplayer matches, webcam-based hand tracking, and interactive controls.
+    Challenge a friend in this browser-based ping-pong game."
+    >
+<meta property="og:title" content="3D Multiplayer Table Tennis Game | Play Online">
+<meta property="og:description" content="Play 3D table tennis online with multiplayer matches, webcam-based hand tracking, and interactive controls. Challenge a friend in your browser.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://rajacharyaroyal.github.io/3d-table-tennis/">
+<link rel="canonical" href="https://rajacharyaroyal.github.io/3d-table-tennis/">
+  <title>3D Multiplayer Table Tennis Game | Play Online</title>
   <!-- ─── CDN Dependencies ─────────────────────────────────────────── -->
   <!-- Three.js: try r134 (stable UMD), fallback to unpkg r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js" crossorigin="anonymous"
@@ -380,6 +399,7 @@
         transform: translate(-50%, -50%) scale(1.4);
         opacity: 0.5;
       }
+
       to {
         transform: translate(-50%, -50%) scale(1);
         opacity: 1;
@@ -573,6 +593,7 @@
         opacity: 0;
         transform: translateY(-10px);
       }
+
       to {
         opacity: 1;
         transform: translateY(0);
@@ -583,6 +604,7 @@
       from {
         opacity: 1;
       }
+
       to {
         opacity: 0;
         transform: translateY(-6px);
@@ -841,10 +863,10 @@
         if (!this._ctx) {
           try {
             this._ctx = new (window.AudioContext || window.webkitAudioContext)();
-          } catch (e) {}
+          } catch (e) { }
         }
         if (this._ctx && this._ctx.state === 'suspended') {
-          this._ctx.resume().catch(() => {});
+          this._ctx.resume().catch(() => { });
         }
         return this._ctx;
       }
@@ -867,7 +889,7 @@
           gain.connect(ctx.destination);
           osc.start();
           osc.stop(ctx.currentTime + 0.05);
-        } catch (e) {}
+        } catch (e) { }
       }
 
       tableBounce() {
@@ -888,7 +910,7 @@
           gain.connect(ctx.destination);
           osc.start();
           osc.stop(ctx.currentTime + 0.035);
-        } catch (e) {}
+        } catch (e) { }
       }
 
       netHit() {
@@ -906,7 +928,7 @@
           gain.connect(ctx.destination);
           osc.start();
           osc.stop(ctx.currentTime + 0.1);
-        } catch (e) {}
+        } catch (e) { }
       }
 
       pointScored() {
@@ -936,7 +958,7 @@
           g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
           o.start();
           o.stop(ctx.currentTime + dur);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
 
@@ -1819,7 +1841,7 @@
               this._isProcessingFrame = true;
               try {
                 await hands.send({ image: this._videoEl });
-              } catch (e) {} finally {
+              } catch (e) { } finally {
                 this._isProcessingFrame = false;
               }
             },
@@ -1978,12 +2000,12 @@
           if (this.channel) {
             try {
               if (typeof this.channel.unsubscribe === 'function') await this.channel.unsubscribe();
-            } catch (e) {}
+            } catch (e) { }
             try {
               if (this.supabase && typeof this.supabase.removeChannel === 'function') {
                 await this.supabase.removeChannel(this.channel);
               }
-            } catch (e) {}
+            } catch (e) { }
             this.channel = null;
           }
 
@@ -2062,12 +2084,12 @@
         if (this.channel) {
           try {
             if (typeof this.channel.unsubscribe === 'function') await this.channel.unsubscribe();
-          } catch(e) {}
+          } catch (e) { }
           try {
             if (this.supabase && typeof this.supabase.removeChannel === 'function') {
               await this.supabase.removeChannel(this.channel);
             }
-          } catch(e) {}
+          } catch (e) { }
           this.channel = null;
           this.connected = false;
         }
@@ -2247,7 +2269,7 @@
 
             case 'candidate':
               if (msg.gen === this.gen && this.pc && this.pc.remoteDescription) {
-                try { await this.pc.addIceCandidate(msg.candidate); } catch (e) {}
+                try { await this.pc.addIceCandidate(msg.candidate); } catch (e) { }
               } else if (msg.gen >= this.gen && this.pendingCandidates.length < 200) {
                 this.pendingCandidates.push(msg);
               }
@@ -2469,7 +2491,7 @@
         const speed = 6.88;
         const homeZ = -(L / 2 - 0.22);
         if (gameState === 'SERVING') {
-          const tx = Math.max(-W/2+0.1, Math.min(W/2-0.1, ballPos.x + this.offset));
+          const tx = Math.max(-W / 2 + 0.1, Math.min(W / 2 - 0.1, ballPos.x + this.offset));
           this._moveTo(aiPaddlePos, tx, H + 0.13, homeZ, dt, speed);
           if (Math.abs(aiPaddlePos.x - tx) < 0.05 && Math.abs(aiPaddlePos.z - homeZ) < 0.05)
             this._serveReady = true;
@@ -2481,28 +2503,28 @@
         }
         let tx, tz;
         if (ballPos.z < 0 && this._predictX !== undefined) {
-          tx = Math.max(-W/2+0.1, Math.min(W/2-0.1, this._predictX + this.offset));
+          tx = Math.max(-W / 2 + 0.1, Math.min(W / 2 - 0.1, this._predictX + this.offset));
           tz = Math.max(homeZ, Math.min(-0.1, ballPos.z + 0.2));
         } else {
           // Anticipation tracking: tracks 65% of ball X (25% faster court recovery)
-          tx = Math.max(-W/2+0.1, Math.min(W/2-0.1, ballPos.x * 0.65 + this.offset));
+          tx = Math.max(-W / 2 + 0.1, Math.min(W / 2 - 0.1, ballPos.x * 0.65 + this.offset));
           tz = homeZ;
         }
         this._moveTo(aiPaddlePos, tx, H + 0.13, tz, dt, speed);
       }
       predict(ballPos, ballVel) {
         if (ballVel.z >= 0) { this._predictX = undefined; return; }
-        const t = (ballPos.z - (-(GAME_CONFIG.tableLength/2 - 0.22))) / (-ballVel.z + 0.001);
+        const t = (ballPos.z - (-(GAME_CONFIG.tableLength / 2 - 0.22))) / (-ballVel.z + 0.001);
         // Includes subtle lateral deceleration estimation for sharper intercept
-        this._predictX = Math.max(-GAME_CONFIG.tableWidth/2+0.05,
-          Math.min(GAME_CONFIG.tableWidth/2-0.05, ballPos.x + ballVel.x * t * 0.95));
+        this._predictX = Math.max(-GAME_CONFIG.tableWidth / 2 + 0.05,
+          Math.min(GAME_CONFIG.tableWidth / 2 - 0.05, ballPos.x + ballVel.x * t * 0.95));
       }
       _moveTo(pos, tx, ty, tz, dt, speed) {
         const dx = tx - pos.x, dy = ty - pos.y, dz = tz - pos.z;
-        const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (d > 0.005) {
           const s = Math.min(speed * dt, d);
-          pos.x += dx/d*s; pos.y += dy/d*s; pos.z += dz/d*s;
+          pos.x += dx / d * s; pos.y += dy / d * s; pos.z += dz / d * s;
         }
       }
       shouldServe() {
@@ -3043,7 +3065,7 @@
           u.pitch = 1.0;
           u.volume = 1.0;
           window.speechSynthesis.speak(u);
-        } catch(e) {}
+        } catch (e) { }
       }
 
       _playBeep() {
@@ -3058,7 +3080,7 @@
           g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
           o.start();
           o.stop(ctx.currentTime + 0.3);
-        } catch(e) {}
+        } catch (e) { }
       }
 
       _playVictoryVoice(winner) {
@@ -3078,7 +3100,7 @@
             u.volume = 1.0;
             window.speechSynthesis.speak(u);
           }
-        } catch(e) {}
+        } catch (e) { }
       }
 
       _pause() {
@@ -3227,7 +3249,7 @@
         // Serve rotation: every 2 points, every 1 in deuce (10-10+)
         this.pointsThisServer++;
         const inDeuce = this.p1Score >= GAME_CONFIG.pointsToWin - 1 &&
-                        this.p2Score >= GAME_CONFIG.pointsToWin - 1;
+          this.p2Score >= GAME_CONFIG.pointsToWin - 1;
         if (this.pointsThisServer >= (inDeuce ? 1 : 2)) {
           this.server = this.server === 1 ? 2 : 1;
           this.pointsThisServer = 0;
